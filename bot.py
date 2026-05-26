@@ -51,7 +51,7 @@ router = Router()
 async def handle_message(message: types.Message):
     # Handle commands
     if message.text and message.text.startswith("/"):
-        command = message.text.split()[0][1:].lower()
+        command = message.text.split()[0][1:].split('@')[0].lower()
         character = ALIASES.get(command, command)
         files = find_character_files(character)
 
