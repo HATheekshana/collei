@@ -1,0 +1,105 @@
+import os
+import logging
+from aiogram import Bot, Dispatcher, types
+from aiogram.utils import executor
+
+TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN")
+
+CARDS_FOLDER = "cards"
+GUIDES_FOLDER = "guides"
+
+ALIASES = {
+    "yunjin": "yun jin",
+    "heizou": "shikanoin heizou",
+    "shinobu": "kuki shinobu",
+    "kujousara": "kujou sara",
+}
+
+def find_character_files(character: str) -> list:
+    files = []
+    normalized_character = (
+        character.lower()
+        .replace("-", "")
+        .replace("_", "")
+        .replace(" ", "")
+    )
+    
+    for folder in [CARDS_FOLDER, GUIDES_FOLDER]:
+        if not os.path.isdir(folder):
+            continue
+        
+        for fname in os.listdir(folder):
+            normalized_file = (
+                fname.lower()
+                .replace("-", "")
+                .replace("_", "")
+                .replace(" ", "")
+            )
+            
+            if normalized_character in normalized_file:
+                files.append(os.path.join(folder, fname))
+    
+    return sorted(files)
+
+
+async def handle_command(message: types.Message):
+    command = message.text.split()[0][1:].lower()
+    character = ALIASES.get(command, command)
+    files = find_character_files(character)
+
+    if not files:
+        await message.reply(f"No files found for {character.title()}.")
+        return
+
+    # Collect image files for media group
+    media = []
+    for path in files[:10]:  # Telegram limit: 10 media per group
+        try:
+            if not os.path.isfile(path):
+                logging.warning("Not a file: %s", path)
+                continue
+            ext = os.path.splitext(path)[1].lower()
+            if ext in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
+                media.append(types.InputMediaPhoto(types.InputFile(path)))
+            else:
+                media.append(types.InputMediaDocument(types.InputFile(path)))
+        except Exception:
+            logging.exception("Failed to process %s", path)
+
+    # Send media group if we have media
+    if media:
+        await message.reply_media_group(media)
+
+    # Send remaining files individually (if more than 10)
+    for path in files[10:]:
+        try:
+            if not os.path.isfile(path):
+                continue
+            ext = os.path.splitext(path)[1].lower()
+            if ext in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
+                await message.reply_photo(types.InputFile(path))
+            else:
+                await message.reply_document(types.InputFile(path))
+        except Exception:
+            logging.exception("Failed to send %s", path)
+
+
+async def handle_text(message: types.Message):
+    # ignore plain text messages that are not commands
+    return
+
+
+def main():
+    logging.basicConfig(level=logging.INFO)
+    bot = Bot(token=TOKEN)
+    dp = Dispatcher(bot)
+
+    dp.register_message_handler(handle_command, lambda msg: msg.text and msg.text.startswith('/'))
+    dp.register_message_handler(handle_text, content_types=types.ContentTypes.TEXT)
+
+    logging.info("Bot started (aiogram)")
+    executor.start_polling(dp, skip_updates=True)
+
+
+if __name__ == "__main__":
+    main()
