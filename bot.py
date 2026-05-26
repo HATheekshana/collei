@@ -4,7 +4,7 @@ import asyncio
 from aiogram import Bot, Router, Dispatcher, types
 
 TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN")
-
+print(TOKEN)
 CARDS_FOLDER = "cards"
 GUIDES_FOLDER = "guides"
 
