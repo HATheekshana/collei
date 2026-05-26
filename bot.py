@@ -163,8 +163,8 @@ async def handle_message(message: types.Message):
         if artifact_info or artifact_files:
             artifact_caption = None
             if artifact_info:
-                info_lines = [f"Artifact: {artifact_info.get('name', command.title())}"]
-                for key in ["2-Piece Effect", "4-Piece Effect"]:
+                info_lines = [f"<b>Artifact:</b> {artifact_info.get('name', command.title())}\n\n"]
+                for key in ["<b>2-Piece Effect</b>", "<b>4-Piece Effect</b>"]:
                     if key in artifact_info:
                         info_lines.append(f"{key}\t{artifact_info[key]}")
                 artifact_caption = "\n".join(info_lines)
@@ -185,7 +185,7 @@ async def handle_message(message: types.Message):
                         logging.exception("Failed to process %s", path)
 
                 if media:
-                    await send_media(message, media, caption=artifact_caption)
+                    await send_media(message, media, caption=artifact_caption,parse_mode="HTML")
                     artifact_caption = None
 
                 for path in artifact_files[10:]:
