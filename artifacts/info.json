@@ -1,8 +1,6 @@
 [
   {
-    "name": "Nightsoul's Blessing",
+    "name": "Scroll",
     "2-Piece Effect": "When a nearby party member triggers a Nightsoul Burst, the equipping character regenerates 6 Elemental Energy.",
-    "4-Piece Effect": "After the equipping character triggers a reaction, all nearby party members gain a 12% Elemental DMG Bonus for the involved Elemental Types for 15s. If the equipping character is in the Nightsoul's Blessing state when triggering this effect, all party members gain an additional 28% Elemental DMG bonus for the Elemental Types involved in the reaction for 20s.",
-    "description": "Example artifact entry. Use the command /scroll to search artifact files in the artifacts folder and get artifact stats from info.json."
-  }
-]
+    "4-Piece Effect": "After the equipping character triggers a reaction, all nearby party members gain a 12% Elemental DMG Bonus for the involved Elemental Types for 15s. If the equipping character is in the Nightsoul's Blessing state when triggering this effect, all party members gain an additional 28% Elemental DMG bonus for the Elemental Types involved in the reaction for 20s."
+}]

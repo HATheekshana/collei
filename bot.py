@@ -117,17 +117,28 @@ def find_artifact_info(artifact: str) -> dict | None:
     return None
 
 
-async def send_media(message: types.Message, media: list):
+async def send_media(message: types.Message, media: list, caption: str | None = None):
     if not media:
         return
     if len(media) == 1:
         single = media[0]
         if isinstance(single, types.InputMediaPhoto):
-            await message.reply_photo(single.media)
+            await message.answer_photo(
+                photo=single.media,
+                caption=caption,
+                parse_mode="HTML",
+            )
         else:
-            await message.reply_document(single.media)
+            await message.answer_document(
+                document=single.media,
+                caption=caption,
+                parse_mode="HTML",
+            )
         return
 
+    if caption and hasattr(media[0], "caption"):
+        media[0].caption = caption
+        media[0].parse_mode = "HTML"
     await message.reply_media_group(media)
 
 
@@ -150,12 +161,13 @@ async def handle_message(message: types.Message):
         artifact_files = find_artifact_files(command)
 
         if artifact_info or artifact_files:
+            artifact_caption = None
             if artifact_info:
                 info_lines = [f"Artifact: {artifact_info.get('name', command.title())}"]
-                for key in ["2-Piece Effect", "4-Piece Effect", "description"]:
+                for key in ["2-Piece Effect", "4-Piece Effect"]:
                     if key in artifact_info:
                         info_lines.append(f"{key}\t{artifact_info[key]}")
-                await message.reply("\n".join(info_lines))
+                artifact_caption = "\n".join(info_lines)
 
             if artifact_files:
                 media = []
@@ -173,7 +185,8 @@ async def handle_message(message: types.Message):
                         logging.exception("Failed to process %s", path)
 
                 if media:
-                    await send_media(message, media)
+                    await send_media(message, media, caption=artifact_caption)
+                    artifact_caption = None
 
                 for path in artifact_files[10:]:
                     try:
@@ -186,6 +199,9 @@ async def handle_message(message: types.Message):
                             await message.reply_document(types.FSInputFile(path))
                     except Exception:
                         logging.exception("Failed to send %s", path)
+
+            if artifact_caption:
+                await message.reply(artifact_caption)
             return
 
         character = ALIASES.get(command, command)
