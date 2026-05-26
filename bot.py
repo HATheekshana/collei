@@ -185,7 +185,7 @@ async def handle_message(message: types.Message):
                         logging.exception("Failed to process %s", path)
 
                 if media:
-                    await send_media(message, media, caption=artifact_caption, parse_mode="HTML")
+                    await send_media(message, media, caption=artifact_caption)
                     artifact_caption = None
 
                 for path in artifact_files[10:]:
@@ -194,14 +194,14 @@ async def handle_message(message: types.Message):
                             continue
                         ext = os.path.splitext(path)[1].lower()
                         if ext in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
-                            await message.reply_photo(types.FSInputFile(path), parse_mode="HTML")
+                            await message.reply_photo(types.FSInputFile(path))
                         else:
-                            await message.reply_document(types.FSInputFile(path), parse_mode="HTML")
+                            await message.reply_document(types.FSInputFile(path))
                     except Exception:
                         logging.exception("Failed to send %s", path)
 
             if artifact_caption:
-                await message.reply(artifact_caption, parse_mode="HTML")
+                await message.reply(artifact_caption)
             return
 
         character = ALIASES.get(command, command)
