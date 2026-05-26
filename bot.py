@@ -52,6 +52,13 @@ async def handle_message(message: types.Message):
     # Handle commands
     if message.text and message.text.startswith("/"):
         command = message.text.split()[0][1:].split('@')[0].lower()
+
+        if command == "start":
+            await message.reply(
+                "Welcome! Send a character command like /ganyu or /raiden to get their guides and material cards."
+            )
+            return
+
         character = ALIASES.get(command, command)
         files = find_character_files(character)
 
