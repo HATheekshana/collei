@@ -3,7 +3,7 @@ import logging
 import asyncio
 from aiogram import Bot, Router, Dispatcher, types
 
-TOKEN = "1845469416:AAGrksk7QvQ4F1YqnateP0QjoF5THT1PHr8"
+TOKEN = "8834632447:AAF5vqYp9N31Q8ANMk2tg0ukA8JOiu4R4tk"
 
 CARDS_FOLDER = "cards"
 GUIDES_FOLDER = "guides"
@@ -24,7 +24,7 @@ def find_character_files(character: str) -> list:
         .replace(" ", "")
     )
     
-    for folder in [CARDS_FOLDER, GUIDES_FOLDER]:
+    for folder in [GUIDES_FOLDER, CARDS_FOLDER]:
         if not os.path.isdir(folder):
             continue
         
