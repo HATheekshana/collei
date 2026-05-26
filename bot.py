@@ -29,8 +29,10 @@ def find_character_files(character: str) -> list:
             continue
         
         for fname in os.listdir(folder):
+            # Remove extension before normalization
+            name_without_ext = os.path.splitext(fname)[0]
             normalized_file = (
-                fname.lower()
+                name_without_ext.lower()
                 .replace("-", "")
                 .replace("_", "")
                 .replace(" ", "")
