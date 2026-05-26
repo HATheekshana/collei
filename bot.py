@@ -38,7 +38,7 @@ def find_character_files(character: str) -> list:
                 .replace(" ", "")
             )
             
-            if normalized_character in normalized_file:
+            if normalized_file.startswith(normalized_character):
                 files.append(os.path.join(folder, fname))
     
     return sorted(files)
