@@ -123,11 +123,18 @@ async def send_media(message: types.Message, media: list, caption: str | None = 
     if len(media) == 1:
         single = media[0]
         if isinstance(single, types.InputMediaPhoto):
-            await message.answer_photo(
-                photo=single.media,
-                caption=caption,
-                parse_mode="HTML",
-            )
+            if caption:
+                await message.answer_document(
+                    document=single.media,
+                    caption=caption,
+                    parse_mode="HTML",
+                )
+            else:
+                await message.answer_photo(
+                    photo=single.media,
+                    caption=caption,
+                    parse_mode="HTML",
+                )
         else:
             await message.answer_document(
                 document=single.media,
