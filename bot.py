@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import asyncio
+import time
 from aiogram import Bot, Router, Dispatcher, types
 
 TOKEN = "8834632447:AAF5vqYp9N31Q8ANMk2tg0ukA8JOiu4R4tk"
@@ -117,6 +118,23 @@ def find_artifact_info(artifact: str) -> dict | None:
     return None
 
 
+async def send_artifact_preview(message: types.Message, image_name: str, caption: str | None = None):
+    """Send a hidden-link preview to the raw GitHub artifact image to avoid caching issues.
+
+    Uses a zero-width-space anchor so Telegram shows the image preview but hides the link text.
+    """
+    repo_raw_url = "https://raw.githubusercontent.com/HATheekshana/collei/main/artifacts"
+    timestamp = int(time.time())
+    full_image_url = f"{repo_raw_url}/{image_name}?v={timestamp}"
+    hidden_link = f'<a href="{full_image_url}">&#8203;</a>'
+
+    text = hidden_link
+    if caption:
+        text += caption
+
+    await message.reply(text, parse_mode="HTML")
+
+
 async def send_media(message: types.Message, media: list, caption: str | None = None):
     if not media:
         return
@@ -177,37 +195,24 @@ async def handle_message(message: types.Message):
                 artifact_caption = "\n\n".join(info_lines)
 
             if artifact_files:
-                media = []
-                for path in artifact_files[:10]:
+                # Prefer sending remote previews from the GitHub artifacts folder
+                # This uses a hidden zero-width-space link so Telegram shows the image preview
+                for idx, path in enumerate(artifact_files):
                     try:
-                        if not os.path.isfile(path):
-                            logging.warning("Not a file: %s", path)
+                        fname = os.path.basename(path)
+                        ext = os.path.splitext(fname)[1].lower()
+                        if ext not in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
+                            # fallback to sending the local file if it's not an image
+                            if os.path.isfile(path):
+                                await message.reply_document(types.FSInputFile(path))
                             continue
-                        ext = os.path.splitext(path)[1].lower()
-                        if ext in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
-                            base_name = os.path.splitext(os.path.basename(path))[0]
-                            media.append(types.InputMediaPhoto(media=types.FSInputFile(path, filename=f"{base_name}.jpg")))
-                        else:
-                            media.append(types.InputMediaDocument(media=types.FSInputFile(path)))
-                    except Exception:
-                        logging.exception("Failed to process %s", path)
 
-                if media:
-                    await send_media(message, media, caption=artifact_caption)
-                    artifact_caption = None
-
-                for path in artifact_files[10:]:
-                    try:
-                        if not os.path.isfile(path):
-                            continue
-                        ext = os.path.splitext(path)[1].lower()
-                        if ext in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
-                            base_name = os.path.splitext(os.path.basename(path))[0]
-                            await message.reply_photo(types.FSInputFile(path, filename=f"{base_name}.jpg"))
-                        else:
-                            await message.reply_document(types.FSInputFile(path))
+                        cap = artifact_caption if idx == 0 else None
+                        await send_artifact_preview(message, fname, caption=cap)
                     except Exception:
-                        logging.exception("Failed to send %s", path)
+                        logging.exception("Failed to send preview %s", path)
+
+                artifact_caption = None
 
             if artifact_caption:
                 await message.reply(artifact_caption)
