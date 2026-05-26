@@ -164,10 +164,10 @@ async def handle_message(message: types.Message):
             artifact_caption = None
             if artifact_info:
                 info_lines = [f"<b>Artifact:</b> {artifact_info.get('name', command.title())}\n\n"]
-                for key in ["<b>2-Piece Effect</b>", "<b>4-Piece Effect</b>"]:
+                for key in ["2-Piece Effect", "4-Piece Effect"]:
                     if key in artifact_info:
-                        info_lines.append(f"{key}\t{artifact_info[key]}")
-                artifact_caption = "\n".join(info_lines)
+                        info_lines.append(f"<b>{key}</b>\n{artifact_info[key]}")
+                artifact_caption = "\n\n".join(info_lines)
 
             if artifact_files:
                 media = []
@@ -185,7 +185,7 @@ async def handle_message(message: types.Message):
                         logging.exception("Failed to process %s", path)
 
                 if media:
-                    await send_media(message, media, caption=artifact_caption,parse_mode="HTML")
+                    await send_media(message, media, caption=artifact_caption, parse_mode="HTML")
                     artifact_caption = None
 
                 for path in artifact_files[10:]:
@@ -194,14 +194,14 @@ async def handle_message(message: types.Message):
                             continue
                         ext = os.path.splitext(path)[1].lower()
                         if ext in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
-                            await message.reply_photo(types.FSInputFile(path))
+                            await message.reply_photo(types.FSInputFile(path), parse_mode="HTML")
                         else:
-                            await message.reply_document(types.FSInputFile(path))
+                            await message.reply_document(types.FSInputFile(path), parse_mode="HTML")
                     except Exception:
                         logging.exception("Failed to send %s", path)
 
             if artifact_caption:
-                await message.reply(artifact_caption)
+                await message.reply(artifact_caption, parse_mode="HTML")
             return
 
         character = ALIASES.get(command, command)
