@@ -3,8 +3,8 @@ import logging
 import asyncio
 from aiogram import Bot, Router, Dispatcher, types
 
-TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN")
-print(TOKEN)
+TOKEN = "1845469416:AAGrksk7QvQ4F1YqnateP0QjoF5THT1PHr8"
+
 CARDS_FOLDER = "cards"
 GUIDES_FOLDER = "guides"
 
