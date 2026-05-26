@@ -185,7 +185,8 @@ async def handle_message(message: types.Message):
                             continue
                         ext = os.path.splitext(path)[1].lower()
                         if ext in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
-                            media.append(types.InputMediaPhoto(media=types.FSInputFile(path)))
+                            base_name = os.path.splitext(os.path.basename(path))[0]
+                            media.append(types.InputMediaPhoto(media=types.FSInputFile(path, filename=f"{base_name}.jpg")))
                         else:
                             media.append(types.InputMediaDocument(media=types.FSInputFile(path)))
                     except Exception:
@@ -201,7 +202,8 @@ async def handle_message(message: types.Message):
                             continue
                         ext = os.path.splitext(path)[1].lower()
                         if ext in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
-                            await message.reply_photo(types.FSInputFile(path))
+                            base_name = os.path.splitext(os.path.basename(path))[0]
+                            await message.reply_photo(types.FSInputFile(path, filename=f"{base_name}.jpg"))
                         else:
                             await message.reply_document(types.FSInputFile(path))
                     except Exception:
