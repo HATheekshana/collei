@@ -3,6 +3,7 @@ import json
 import logging
 import asyncio
 import time
+import re
 from aiogram import Bot, Router, Dispatcher, types
 
 TOKEN = "8834632447:AAF5vqYp9N31Q8ANMk2tg0ukA8JOiu4R4tk"
@@ -11,6 +12,7 @@ CARDS_FOLDER = "cards"
 GUIDES_FOLDER = "guides"
 ARTIFACTS_FOLDER = "artifacts"
 ARTIFACTS_INFO_FILE = os.path.join(ARTIFACTS_FOLDER, "info.json")
+ADMIN_IDS = {1675903713}
 
 ALIASES = {
     "yunjin": "yun jin",
@@ -118,6 +120,95 @@ def find_artifact_info(artifact: str) -> dict | None:
     return None
 
 
+def is_admin(message: types.Message) -> bool:
+    return bool(message.from_user and message.from_user.id in ADMIN_IDS)
+
+
+def parse_artifact_payload(payload: str) -> tuple[str | None, dict]:
+    pattern = re.compile(r"\b\d+-Piece(?:\s+Effect)?\s*:", re.IGNORECASE)
+    match = pattern.search(payload)
+    if match:
+        name = payload[: match.start()].strip()
+        rest = payload[match.start() :].strip()
+    else:
+        if ":" in payload:
+            name, rest = payload.split(":", 1)
+            name = name.strip()
+            rest = rest.strip()
+        else:
+            return payload.strip() or None, {}
+
+    data = {}
+    if rest:
+        sections = re.split(r"(?=\b\d+-Piece(?:\s+Effect)?\s*:)", rest, flags=re.IGNORECASE)
+        for section in sections:
+            if not section.strip():
+                continue
+            if ":" not in section:
+                continue
+            key, value = section.split(":", 1)
+            key = key.strip()
+            value = value.strip()
+            if key and value:
+                data[key] = value
+
+    return name or None, data
+
+
+def save_artifact_info_entry(entry: dict) -> bool:
+    artifact_name = entry.get("name") if isinstance(entry, dict) else None
+    if not artifact_name:
+        return False
+
+    if not os.path.isdir(ARTIFACTS_FOLDER):
+        os.makedirs(ARTIFACTS_FOLDER, exist_ok=True)
+
+    info_map = load_artifact_info()
+    normalized_name = normalize_name(artifact_name)
+    info_map[normalized_name] = entry
+
+    try:
+        with open(ARTIFACTS_INFO_FILE, "w", encoding="utf-8") as fh:
+            json.dump(info_map, fh, ensure_ascii=False, indent=2)
+        global _artifact_info_cache
+        _artifact_info_cache = info_map
+        return True
+    except Exception:
+        logging.exception("Failed to save artifact info")
+        return False
+
+
+async def handle_add_artifact_command(message: types.Message):
+    if not is_admin(message):
+        await message.reply("You are not authorized to use this command.")
+        return
+
+    if not message.text:
+        await message.reply("Usage: /addarti Artifact Name 2-Piece: ... 4-Piece: ...")
+        return
+
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2:
+        await message.reply("Usage: /addarti Artifact Name 2-Piece: ... 4-Piece: ...")
+        return
+
+    artifact_name, artifact_data = parse_artifact_payload(parts[1].strip())
+    if not artifact_name:
+        await message.reply(
+            "Could not parse artifact name. Use /addarti Artifact Name 2-Piece: ... 4-Piece: ..."
+        )
+        return
+
+    entry = {"name": artifact_name}
+    entry.update(artifact_data)
+    if not save_artifact_info_entry(entry):
+        await message.reply("Failed to save artifact info. Check bot logs.")
+        return
+
+    saved_fields = ", ".join(artifact_data.keys()) or "details"
+    await message.reply(f"Artifact info saved for {artifact_name} ({saved_fields}).")
+
+
 async def send_artifact_preview(message: types.Message, image_name: str, caption: str | None = None):
     """Send a hidden-link preview to the raw GitHub artifact image to avoid caching issues.
 
@@ -180,6 +271,10 @@ async def handle_message(message: types.Message):
             await message.reply(
                 "Welcome! Send a character command like /ganyu or /raiden to get their guides and material cards."
             )
+            return
+
+        if command == "addarti":
+            await handle_add_artifact_command(message)
             return
 
         artifact_info = find_artifact_info(command)
