@@ -5,6 +5,10 @@ import asyncio
 import time
 import re
 from aiogram import Bot, Router, Dispatcher, types
+try:
+    import genshin_db
+except ImportError:
+    genshin_db = None
 
 TOKEN = "8834632447:AAF5vqYp9N31Q8ANMk2tg0ukA8JOiu4R4tk"
 
@@ -117,6 +121,22 @@ def find_artifact_info(artifact: str) -> dict | None:
     for normalized_name, entry in artifact_info.items():
         if normalized_name.startswith(normalized_artifact):
             return entry
+    
+    # Fallback to genshin-db if not found in info.json
+    if genshin_db:
+        try:
+            db_artifact = genshin_db.artifacts(name=artifact)
+            if db_artifact:
+                entry = {"name": db_artifact.get("name", artifact)}
+                # Map genshin-db structure to our format
+                if "2pc" in db_artifact:
+                    entry["2-Piece Effect"] = db_artifact["2pc"]
+                if "4pc" in db_artifact:
+                    entry["4-Piece Effect"] = db_artifact["4pc"]
+                return entry if entry.get("2-Piece Effect") or entry.get("4-Piece Effect") else None
+        except Exception:
+            logging.debug("genshin-db lookup failed for artifact: %s", artifact)
+    
     return None
 
 
