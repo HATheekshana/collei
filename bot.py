@@ -120,6 +120,18 @@ def find_artifact_info(artifact: str) -> dict | None:
     return None
 
 
+def load_artifact_info_raw():
+    if not os.path.isfile(ARTIFACTS_INFO_FILE):
+        return []
+
+    try:
+        with open(ARTIFACTS_INFO_FILE, "r", encoding="utf-8") as fh:
+            return json.load(fh)
+    except Exception:
+        logging.exception("Failed to load raw artifact info")
+        return []
+
+
 def is_admin(message: types.Message) -> bool:
     return bool(message.from_user and message.from_user.id in ADMIN_IDS)
 
@@ -138,6 +150,14 @@ def parse_artifact_payload(payload: str) -> tuple[str | None, dict]:
         else:
             return payload.strip() or None, {}
 
+    def normalize_piece_key(raw_key: str) -> str:
+        lower = raw_key.lower()
+        if lower.startswith("2-piece"):
+            return "2-Piece Effect"
+        if lower.startswith("4-piece"):
+            return "4-Piece Effect"
+        return raw_key.strip()
+
     data = {}
     if rest:
         sections = re.split(r"(?=\b\d+-Piece(?:\s+Effect)?\s*:)", rest, flags=re.IGNORECASE)
@@ -147,7 +167,7 @@ def parse_artifact_payload(payload: str) -> tuple[str | None, dict]:
             if ":" not in section:
                 continue
             key, value = section.split(":", 1)
-            key = key.strip()
+            key = normalize_piece_key(key)
             value = value.strip()
             if key and value:
                 data[key] = value
@@ -163,15 +183,30 @@ def save_artifact_info_entry(entry: dict) -> bool:
     if not os.path.isdir(ARTIFACTS_FOLDER):
         os.makedirs(ARTIFACTS_FOLDER, exist_ok=True)
 
-    info_map = load_artifact_info()
+    raw_data = load_artifact_info_raw()
     normalized_name = normalize_name(artifact_name)
-    info_map[normalized_name] = entry
+
+    if isinstance(raw_data, list):
+        replaced = False
+        for idx, existing in enumerate(raw_data):
+            if isinstance(existing, dict) and normalize_name(existing.get("name", "")) == normalized_name:
+                raw_data[idx] = entry
+                replaced = True
+                break
+        if not replaced:
+            raw_data.append(entry)
+        save_data = raw_data
+    elif isinstance(raw_data, dict):
+        raw_data[normalized_name] = entry
+        save_data = raw_data
+    else:
+        save_data = [entry]
 
     try:
         with open(ARTIFACTS_INFO_FILE, "w", encoding="utf-8") as fh:
-            json.dump(info_map, fh, ensure_ascii=False, indent=2)
+            json.dump(save_data, fh, ensure_ascii=False, indent=2)
         global _artifact_info_cache
-        _artifact_info_cache = info_map
+        _artifact_info_cache = load_artifact_info()
         return True
     except Exception:
         logging.exception("Failed to save artifact info")
@@ -210,10 +245,6 @@ async def handle_add_artifact_command(message: types.Message):
 
 
 async def send_artifact_preview(message: types.Message, image_name: str, caption: str | None = None):
-    """Send a hidden-link preview to the raw GitHub artifact image to avoid caching issues.
-
-    Uses a zero-width-space anchor so Telegram shows the image preview but hides the link text.
-    """
     repo_raw_url = "https://raw.githubusercontent.com/HATheekshana/collei/main/artifacts"
     timestamp = int(time.time())
     full_image_url = f"{repo_raw_url}/{image_name}?v={timestamp}"
@@ -310,7 +341,7 @@ async def handle_message(message: types.Message):
                 artifact_caption = None
 
             if artifact_caption:
-                await message.reply(artifact_caption)
+                await message.reply(artifact_caption, parse_mode="HTML")
             return
 
         character = ALIASES.get(command, command)
