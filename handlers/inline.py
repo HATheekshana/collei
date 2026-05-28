@@ -1,6 +1,6 @@
 from aiogram.types import InlineQuery,InlineQueryResultArticle,InputTextMessageContent
 from aiogram import Router
-from bot import normalize_name
+from utils.helper import normalize_name
 from data.search_items import SEARCH_ITEMS
 
 router = Router()
