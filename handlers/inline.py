@@ -114,6 +114,10 @@ async def inline_search(inline_query: InlineQuery):
                 else:
                     message_text.append("No preview available")
 
+                # add image labels for consistency with callback navigation
+                for i, img in enumerate(images, start=1):
+                    message_text.append(f"Image {i}:{hidden_url(img)}")
+
                 # build keyboard to cycle character previews
                 reply = None
                 if images:

@@ -19,8 +19,8 @@ async def handle_message(message: types.Message):
         # Special commands that are always allowed
         SPECIAL_COMMANDS = {"start", "addarti", "allcommands"}
         
-        # If the command is not in SEARCH_ITEMS and not a special command, ignore it silently
-        if command not in SEARCH_ITEMS and command not in SPECIAL_COMMANDS:
+        # If the command is not in SEARCH_ITEMS and not a special command and not an alias, ignore it silently
+        if command not in SEARCH_ITEMS and command not in SPECIAL_COMMANDS and command not in ALIASES:
             return
 
         username = (
