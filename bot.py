@@ -9,7 +9,7 @@ from utils.helper import send_log, build_character_cache
 from handlers.inline import router as inline_router
 from handlers.main import router as main_router
 
-
+from utils.commands import set_commands
 async def main():
     logging.basicConfig(level=logging.INFO)
 
@@ -25,7 +25,7 @@ async def main():
     dp.include_router(main_router)
 
     build_character_cache()
-
+    await set_commands(bot)
     logging.info("Bot started (aiogram v3)")
 
     await send_log(
