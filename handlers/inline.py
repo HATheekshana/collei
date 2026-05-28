@@ -114,10 +114,6 @@ async def inline_search(inline_query: InlineQuery):
                 else:
                     message_text.append("No preview available")
 
-                # add image labels for consistency with callback navigation
-                for i, img in enumerate(images, start=1):
-                    message_text.append(f"Image {i}:{hidden_url(img)}")
-
                 # build keyboard to cycle character previews
                 reply = None
                 if images:
@@ -242,10 +238,6 @@ async def handle_inline_image_callback(callback: CallbackQuery):
             for part in ["2-Piece Effect", "4-Piece Effect"]:
                 if part in artifact_info:
                     message_lines.append(f"{part}:\n{artifact_info[part]}")
-        else:
-            # list small cards/builds summary with index
-            for i, img in enumerate(images, start=1):
-                message_lines.append(f"Image {i}:{hidden_url(img)}")
 
         # build keyboard
         total = len(images)
