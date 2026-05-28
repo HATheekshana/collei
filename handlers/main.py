@@ -8,6 +8,7 @@ from utils.helper import find_character_files, find_artifact_files
 from handlers.media import send_artifact_preview, send_cached_media_group
 from data.aliases import ALIASES
 from data.search_items import SEARCH_ITEMS
+from data.config import BOT_USERNAME
 router = Router()
 @router.message()
 async def handle_message(message: types.Message):
@@ -48,8 +49,43 @@ async def handle_message(message: types.Message):
             logging.exception("Error in send_log: %s", e)
         
         if command == "start":
+            bot_username = BOT_USERNAME
+            if bot_username:
+                bot_username = bot_username.lstrip("@")
+
+            if not bot_username:
+                try:
+                    me = await message.bot.get_me()
+                    bot_username = me.username
+                except Exception:
+                    bot_username = None
+
+            group_link = None
+            if bot_username:
+                group_link = f"https://t.me/{bot_username}?startgroup=true"
+
+            button = None
+            if group_link:
+                button = types.InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [
+                            types.InlineKeyboardButton(
+                                text="Add me to your group",
+                                url=group_link,
+                            )
+                        ]
+                    ]
+                )
+
+            inline_hint = ""
+            if bot_username:
+                inline_hint = f"\n\nYou can also search inline in any chat by typing @{bot_username} and your query."
+
             await message.reply(
-                "Welcome! Send a character command like /ganyu or /raiden to get their guides and material cards."
+                "Welcome to Collei Bot!\n\n"
+                "Send a character command like /ganyu or /collei to get guides and cards.\n"
+                "Use /allcommands to see every available search command." + inline_hint,
+                reply_markup=button,
             )
             return
 
