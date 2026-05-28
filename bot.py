@@ -8,7 +8,119 @@ from dotenv import load_dotenv
 from aiogram.types import InlineQuery,InlineQueryResultArticle,InputTextMessageContent
 
 from aiogram import Bot, Router, Dispatcher, types
+SEARCH_ITEMS = {
+    # Characters
+    "albedo": "Albedo",
+    "alhaitham": "Alhaitham",
+    "aloy": "Aloy",
+    "amber": "Amber",
+    "arlecchino": "Arlecchino",
+    "ayaka": "Ayaka",
+    "ayato": "Ayato",
+    "baizhu": "Baizhu",
+    "barbara": "Barbara",
+    "beidou": "Beidou",
+    "bennett": "Bennett",
+    "candace": "Candace",
+    "charlotte": "Charlotte",
+    "chasca": "Chasca",
+    "chevreuse": "Chevreuse",
+    "chiori": "Chiori",
+    "chongyun": "Chongyun",
+    "collei": "Collei",
+    "cyno": "Cyno",
+    "dahlia": "Dahlia",
+    "dehya": "Dehya",
+    "diluc": "Diluc",
+    "diona": "Diona",
+    "dori": "Dori",
+    "eula": "Eula",
+    "faruzan": "Faruzan",
+    "fischl": "Fischl",
+    "freminet": "Freminet",
+    "furina": "Furina",
+    "gaming": "Gaming",
+    "ganyu": "Ganyu",
+    "gorou": "Gorou",
+    "hu_tao": "Hu Tao",
+    "iansan": "Iansan",
+    "ifa": "Ifa",
+    "ineffa": "Ineffa",
+    "kachina": "Kachina",
+    "kaveh": "Kaveh",
+    "kirara": "Kirara",
+    "kujou_sara": "Kujou Sara",
+    "kuki_shinobu": "Kuki Shinobu",
+    "lan_yan": "Lan Yan",
+    "layla": "Layla",
+    "lisa": "Lisa",
+    "lynette": "Lynette",
+    "mavuika": "Mavuika",
+    "mika": "Mika",
+    "ningguang": "Ningguang",
+    "noelle": "Noelle",
+    "ororon": "Ororon",
+    "razor": "Razor",
+    "rosaria": "Rosaria",
+    "sayu": "Sayu",
+    "sethos": "Sethos",
+    "shikanoin_heizou": "Shikanoin Heizou",
+    "sucrose": "Sucrose",
+    "thoma": "Thoma",
+    "xiangling": "Xiangling",
+    "xianyun": "Xianyun",
+    "xingqiu": "Xingqiu",
+    "xinyan": "Xinyan",
+    "yanfei": "Yanfei",
+    "yaoyao": "Yaoyao",
+    "yun_jin": "Yun Jin",
 
+    # Artifacts
+    "archaic": "Archaic Petra",
+    "aubade": "Aubade of Morningstar and Moon",
+    "blizzard": "Blizzard Strayer",
+    "bloodstained": "Bloodstained Chivalry",
+    "celestial": "Celestial Gift",
+    "crimson": "Crimson Witch of Flames",
+    "day": "Day Carved from Rising Winds",
+    "deepwood": "Deepwood Memories",
+    "desert": "Desert Pavilion Chronicle",
+    "disenchantment": "Disenchantment in Deep Shadows",
+    "echoes": "Echoes of an Offering",
+    "emblem": "Emblem of Severed Fate",
+    "finale": "Finale of the Deep Galleries",
+    "flower": "Flower of Paradise Lost",
+    "fragment": "Fragment of Harmonic Whimsy",
+    "gilded": "Gilded Dreams",
+    "gladiator": "Gladiator's Finale",
+    "golden": "Golden Troupe",
+    "heart": "Heart of Depth",
+    "husk": "Husk of Opulent Dreams",
+    "lavawalker": "Lavawalker",
+    "long": "Long Night's Oath",
+    "maiden": "Maiden Beloved",
+    "marechaussee": "Marechaussee Hunter",
+    "night": "Night of the Sky's Unveiling",
+    "nighttime": "Nighttime Whispers in the Echoing Woods",
+    "noblesse": "Noblesse Oblige",
+    "nymph": "Nymph's Dream",
+    "obsidian": "Obsidian Codex",
+    "ocean": "Ocean-Hued Clam",
+    "pale": "Pale Flame",
+    "retracing": "Retracing Bolide",
+    "scroll": "Scroll of the Hero of Cinder City",
+    "shimenawa": "Shimenawa's Reminiscence",
+    "show": "Show",
+    "silken": "Silken Moon's Serenade",
+    "song": "Song of Days Past",
+    "tenacity": "Tenacity of the Millelith",
+    "thundering": "Thundering Fury",
+    "unfinished": "Unfinished Reverie",
+    "vermillion": "Vermillion Hereafter",
+    "viridescent": "Viridescent Venerer",
+    "vourukasha": "Vourukasha's Glow",
+    "wanderer": "Wanderer's Troupe",
+}
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
 
@@ -479,35 +591,36 @@ async def handle_message(message: types.Message):
 @router.inline_query()
 async def inline_search(inline_query: InlineQuery):
 
-    query = inline_query.query.strip().lower()
-
-    if not query:
-        return
-
-    character = ALIASES.get(query, query)
-
-    files = find_character_files(character)
+    query = normalize_name(
+        inline_query.query
+    )
 
     results = []
 
-    if files:
+    for key, display_name in SEARCH_ITEMS.items():
+
+        if query and query not in normalize_name(key):
+            continue
 
         results.append(
             InlineQueryResultArticle(
-                id=character,
-                title=character.title(),
-                description=f"Send guides for {character.title()}",
+                id=key,
+                title=display_name,
+                description=f"Send {display_name}",
                 input_message_content=InputTextMessageContent(
-                    message_text=f"/{query}"
+                    message_text=f"/{key}"
                 )
             )
         )
 
+        if len(results) >= 50:
+            break
+
     await inline_query.answer(
         results=results,
-        cache_time=1
+        cache_time=1,
+        is_personal=True
     )
-
 async def main():
     logging.basicConfig(level=logging.INFO)
 
