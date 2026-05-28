@@ -80,7 +80,7 @@ async def inline_search(inline_query: InlineQuery):
                         id=f"artifact-{key}",
                         title=f"{display_name} artifact",
                         description="Artifact effects preview",
-                        thumb_url=preview_url,
+                        thumbnail_url=preview_url,
                         input_message_content=InputTextMessageContent(
                             message_text="\n\n".join(message_text),
                             parse_mode="HTML"
@@ -138,7 +138,7 @@ async def inline_search(inline_query: InlineQuery):
                         id=f"char-{key}",
                         title=display_name,
                         description="Character cards and guides",
-                        thumb_url=preview_url,
+                        thumbnail_url=preview_url,
                         input_message_content=InputTextMessageContent(
                             message_text="\n\n".join(message_text),
                             parse_mode="HTML"
