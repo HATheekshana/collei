@@ -5,6 +5,8 @@ import asyncio
 import re
 import traceback
 from dotenv import load_dotenv
+from aiogram.types import InlineQuery,InlineQueryResultArticle,InputTextMessageContent
+
 from aiogram import Bot, Router, Dispatcher, types
 
 load_dotenv()
@@ -474,7 +476,37 @@ async def handle_message(message: types.Message):
                 message,
                 chunk
             )
+@router.inline_query()
+async def inline_search(inline_query: InlineQuery):
 
+    query = inline_query.query.strip().lower()
+
+    if not query:
+        return
+
+    character = ALIASES.get(query, query)
+
+    files = find_character_files(character)
+
+    results = []
+
+    if files:
+
+        results.append(
+            InlineQueryResultArticle(
+                id=character,
+                title=character.title(),
+                description=f"Send guides for {character.title()}",
+                input_message_content=InputTextMessageContent(
+                    message_text=f"/{query}"
+                )
+            )
+        )
+
+    await inline_query.answer(
+        results=results,
+        cache_time=1
+    )
 
 async def main():
     logging.basicConfig(level=logging.INFO)
