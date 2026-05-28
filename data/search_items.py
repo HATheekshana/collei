@@ -100,7 +100,6 @@ SEARCH_ITEMS = {
     "retracing": "Retracing Bolide",
     "scroll": "Scroll of the Hero of Cinder City",
     "shimenawa": "Shimenawa's Reminiscence",
-    "show": "Show",
     "silken": "Silken Moon's Serenade",
     "song": "Song of Days Past",
     "tenacity": "Tenacity of the Millelith",
