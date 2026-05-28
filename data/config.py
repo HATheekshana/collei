@@ -8,8 +8,9 @@ TOKEN = os.getenv("BOT_TOKEN")
 LOG_CHAT_ID = int(os.getenv("LOG_CHAT_ID")) if os.getenv("LOG_CHAT_ID") else None
 BOT_USERNAME = os.getenv("BOT_USERNAME")
 
-# Commands the bot should silently ignore (no reply, no logging)
-IGNORED_COMMANDS = {"bb"}
+# The bot now only accepts commands that are defined in search_items.py
+# Special commands (start, addarti, allcommands) are always allowed
+# All other commands are silently ignored
 
 CARDS_FOLDER = "cards"
 GUIDES_FOLDER = "guides"
