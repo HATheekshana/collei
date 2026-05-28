@@ -128,11 +128,10 @@ async def inline_search(inline_query: InlineQuery):
                     kb = InlineKeyboardMarkup(
                         inline_keyboard=[
                             [
-                                InlineKeyboardButton(text="⬅️", callback_data=f"img|{key}|{max(0, 0-1)}"),
+                                InlineKeyboardButton(text="Previous", callback_data=f"img|{key}|{max(0, 0-1)}"),
                                 InlineKeyboardButton(text=f"1/{len(images)}", callback_data=f"img|{key}|0"),
-                                InlineKeyboardButton(text="➡️", callback_data=f"img|{key}|{1 if len(images)>1 else 0}"),
-                            ],
-                            [InlineKeyboardButton(text="Open", url=images[0])],
+                                InlineKeyboardButton(text="Next", callback_data=f"img|{key}|{1 if len(images)>1 else 0}"),
+                            ]
                         ]
                     )
                     reply = kb
@@ -263,8 +262,7 @@ async def handle_inline_image_callback(callback: CallbackQuery):
                     InlineKeyboardButton(text="⬅️", callback_data=f"img|{key}|{prev_idx}"),
                     InlineKeyboardButton(text=f"{idx+1}/{total}", callback_data=f"img|{key}|{idx}"),
                     InlineKeyboardButton(text="➡️", callback_data=f"img|{key}|{next_idx}"),
-                ],
-                [InlineKeyboardButton(text="Open", url=url)],
+                ]
             ]
         )
 
