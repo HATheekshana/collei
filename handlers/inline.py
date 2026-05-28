@@ -1,4 +1,5 @@
 ﻿import logging
+from urllib.parse import quote
 from aiogram.types import (
     InlineQuery,
     InlineQueryResultArticle,
@@ -34,6 +35,9 @@ async def inline_search(inline_query: InlineQuery):
         def url_is_image(path: str) -> bool:
             return path.lower().endswith((".jpg", ".jpeg", ".png", ".gif", ".webp"))
 
+        def make_url(rel: str) -> str:
+            return f"{_GITHUB_RAW_BASE}/{quote(rel, safe='/:')}" if rel else ""
+
         for key, display_name in SEARCH_ITEMS.items():
             normalized_key = normalize_name(key)
             normalized_display = normalize_name(display_name)
@@ -53,13 +57,13 @@ async def inline_search(inline_query: InlineQuery):
                 for p in artifact_files:
                     if url_is_image(p):
                         relp = p.replace('\\', '/').lstrip('./')
-                        imgs.append(f"{_GITHUB_RAW_BASE}/{relp}")
+                        imgs.append(make_url(relp))
                 for p in character_files:
                     relp = p.replace('\\', '/').lstrip('./')
                     if relp.startswith('cards/') and url_is_image(relp):
-                        imgs.append(f"{_GITHUB_RAW_BASE}/{relp}")
+                        imgs.append(make_url(relp))
                     if relp.startswith('guides/') and url_is_image(relp):
-                        imgs.append(f"{_GITHUB_RAW_BASE}/{relp}")
+                        imgs.append(make_url(relp))
                 return imgs
 
             images = collect_images()
@@ -94,7 +98,7 @@ async def inline_search(inline_query: InlineQuery):
 
                 for path in character_files:
                     rel = path.replace('\\', '/').lstrip('./')
-                    url = f"{_GITHUB_RAW_BASE}/{rel}"
+                    url = make_url(rel)
                     if rel.startswith('cards/') and url_is_image(rel):
                         cards.append(url)
                         if not preview_url:
@@ -208,6 +212,9 @@ async def handle_inline_image_callback(callback: CallbackQuery):
         def hidden_url(url: str) -> str:
             return f'<a href="{url}">&#8203;</a>'
 
+        def make_url(rel: str) -> str:
+            return f"{_GITHUB_RAW_BASE}/{quote(rel, safe='/:')}" if rel else ""
+
         artifact_info = find_artifact_info(key)
         artifact_files = find_artifact_files(key)
         character_files = find_character_files(key)
@@ -216,13 +223,13 @@ async def handle_inline_image_callback(callback: CallbackQuery):
         for p in artifact_files:
             if url_is_image(p):
                 rel = p.replace('\\', '/').lstrip('./')
-                images.append(f"{_GITHUB_RAW_BASE}/{rel}")
+                images.append(make_url(rel))
         for p in character_files:
             rel = p.replace('\\', '/').lstrip('./')
             if rel.startswith('cards/') and url_is_image(rel):
-                images.append(f"{_GITHUB_RAW_BASE}/{rel}")
+                images.append(make_url(rel))
             if rel.startswith('guides/') and url_is_image(rel):
-                images.append(f"{_GITHUB_RAW_BASE}/{rel}")
+                images.append(make_url(rel))
 
         if not images:
             await callback.answer("No images available", show_alert=False)
