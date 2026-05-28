@@ -121,13 +121,16 @@ async def inline_search(inline_query: InlineQuery):
                 # build keyboard to cycle character previews
                 reply = None
                 if images:
-                    kb = InlineKeyboardMarkup(row_width=3)
-                    kb.add(
-                        InlineKeyboardButton(text="⬅️", callback_data=f"img|{key}|{max(0, 0-1)}"),
-                        InlineKeyboardButton(text=f"1/{len(images)}", callback_data=f"img|{key}|0"),
-                        InlineKeyboardButton(text="➡️", callback_data=f"img|{key}|{1 if len(images)>1 else 0}"),
+                    kb = InlineKeyboardMarkup(
+                        inline_keyboard=[
+                            [
+                                InlineKeyboardButton(text="⬅️", callback_data=f"img|{key}|{max(0, 0-1)}"),
+                                InlineKeyboardButton(text=f"1/{len(images)}", callback_data=f"img|{key}|0"),
+                                InlineKeyboardButton(text="➡️", callback_data=f"img|{key}|{1 if len(images)>1 else 0}"),
+                            ],
+                            [InlineKeyboardButton(text="Open", url=images[0])],
+                        ]
                     )
-                    kb.add(InlineKeyboardButton(text="Open", url=images[0]))
                     reply = kb
 
                 results.append(
@@ -140,6 +143,7 @@ async def inline_search(inline_query: InlineQuery):
                             message_text="\n\n".join(message_text),
                             parse_mode="HTML"
                         ),
+                        reply_markup=reply if reply is not None else None,
                     )
                 )
             else:
@@ -246,13 +250,16 @@ async def handle_inline_image_callback(callback: CallbackQuery):
         prev_idx = idx - 1 if idx > 0 else total - 1
         next_idx = idx + 1 if idx < total - 1 else 0
 
-        kb = InlineKeyboardMarkup(row_width=3)
-        kb.add(
-            InlineKeyboardButton(text="⬅️", callback_data=f"img|{key}|{prev_idx}"),
-            InlineKeyboardButton(text=f"{idx+1}/{total}", callback_data=f"img|{key}|{idx}"),
-            InlineKeyboardButton(text="➡️", callback_data=f"img|{key}|{next_idx}"),
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(text="⬅️", callback_data=f"img|{key}|{prev_idx}"),
+                    InlineKeyboardButton(text=f"{idx+1}/{total}", callback_data=f"img|{key}|{idx}"),
+                    InlineKeyboardButton(text="➡️", callback_data=f"img|{key}|{next_idx}"),
+                ],
+                [InlineKeyboardButton(text="Open", url=url)],
+            ]
         )
-        kb.add(InlineKeyboardButton(text="Open", url=url))
 
         text = "\n\n".join(message_lines)
 
