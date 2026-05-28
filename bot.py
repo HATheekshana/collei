@@ -353,7 +353,12 @@ async def send_cached_media_group(
         return
 
     try:
-        sent_messages = await message.answer_media_group(media)
+        sent_messages = await message.answer_media_group(
+            media,
+            reply_parameters=types.ReplyParameters(
+                message_id=message.message_id
+            )
+        )
 
         # Cache uploaded file_ids
         for path, sent in zip(files, sent_messages):
