@@ -11,32 +11,42 @@ from data.search_items import SEARCH_ITEMS
 router = Router()
 @router.message()
 async def handle_message(message: types.Message):
+    logging.info(f"Message received: {message.text}")
     # Handle commands
     if message.text and message.text.startswith("/"):
         command = message.text.split()[0][1:].split('@')[0].lower()
+        logging.info(f"Command extracted: {command}")
         user = message.from_user
 
         # Special commands that are always allowed
         SPECIAL_COMMANDS = {"start", "addarti", "allcommands"}
         
         # If the command is not in SEARCH_ITEMS and not a special command and not an alias, ignore it silently
-        if command not in SEARCH_ITEMS and command not in SPECIAL_COMMANDS and command not in ALIASES:
+        should_ignore = command not in SEARCH_ITEMS and command not in SPECIAL_COMMANDS and command not in ALIASES
+        logging.info(f"Command '{command}' - should_ignore={should_ignore}")
+        
+        if should_ignore:
+            logging.info(f"Ignoring command: {command}")
             return
 
-        username = (
-            f"@{user.username}"
-            if user.username else
-            "None"
-        )
+        try:
+            username = (
+                f"@{user.username}"
+                if user.username else
+                "None"
+            )
 
-        await send_log(
-            message.bot,
-            f"📥 Command Used\n\n"
-            f"👤 User: {user.full_name}\n"
-            f"🆔 ID: {user.id}\n"
-            f"📛 Username: {username}\n"
-            f"💬 Command: /{command}"
-        )
+            await send_log(
+                message.bot,
+                f"Command Used\n\n"
+                f"User: {user.full_name}\n"
+                f"ID: {user.id}\n"
+                f"Username: {username}\n"
+                f"Command: /{command}"
+            )
+        except Exception as e:
+            logging.exception("Error in send_log: %s", e)
+        
         if command == "start":
             await message.reply(
                 "Welcome! Send a character command like /ganyu or /raiden to get their guides and material cards."
