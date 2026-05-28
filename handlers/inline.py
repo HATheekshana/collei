@@ -15,7 +15,7 @@ router = Router()
 async def inline_search(inline_query: InlineQuery):
 
     query = normalize_name(
-        inline_query.query
+        inline_query.query or ""
     )
 
     results = []
