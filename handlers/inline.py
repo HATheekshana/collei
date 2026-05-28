@@ -21,6 +21,7 @@ _GITHUB_RAW_BASE = "https://raw.githubusercontent.com/HATheekshana/collei/main"
 async def inline_search(inline_query: InlineQuery):
     query = normalize_name(inline_query.query or "")
     results = []
+    logging.info("Inline query received: %s", inline_query.query)
 
     try:
         def shorten(text: str, max_len: int = 80) -> str:
@@ -139,7 +140,6 @@ async def inline_search(inline_query: InlineQuery):
                             message_text="\n\n".join(message_text),
                             parse_mode="HTML"
                         ),
-                        reply_markup=reply,
                     )
                 )
             else:
@@ -171,6 +171,8 @@ async def inline_search(inline_query: InlineQuery):
             )
         )
         results = [fallback]
+
+    logging.info("Inline results count: %d", len(results))
 
     await inline_query.answer(
         results=results,
