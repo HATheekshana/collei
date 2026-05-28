@@ -3,7 +3,6 @@ from aiogram.types import InlineQuery, InlineQueryResultArticle, InputTextMessag
 from aiogram import Router
 from utils.helper import normalize_name, find_character_files, find_artifact_files
 from data.search_items import SEARCH_ITEMS
-from data.config import BOT_USERNAME
 from utils.artifacts import find_artifact_info
 
 router = Router()
@@ -16,18 +15,16 @@ async def inline_search(inline_query: InlineQuery):
     query = normalize_name(inline_query.query or "")
     results = []
 
-    bot_username = BOT_USERNAME
-    if not bot_username:
-        try:
-            me = await inline_query.bot.get_me()
-            bot_username = me.username
-        except Exception:
-            bot_username = None
-
     try:
         def shorten(text: str, max_len: int = 80) -> str:
             t = " ".join(text.split())
             return t if len(t) <= max_len else t[: max_len - 1].rstrip() + "…"
+
+        def hidden_url(url: str) -> str:
+            return f'<a href="{url}">&#8203;</a>'
+
+        def url_is_image(path: str) -> bool:
+            return path.lower().endswith((".jpg", ".jpeg", ".png", ".gif", ".webp"))
 
         for key, display_name in SEARCH_ITEMS.items():
             if query and query not in normalize_name(key):
@@ -38,61 +35,75 @@ async def inline_search(inline_query: InlineQuery):
             character_files = find_character_files(key)
 
             if artifact_info:
-                summary_parts = []
+                message_text = [display_name]
+                preview_added = False
+                for path in artifact_files:
+                    if url_is_image(path):
+                        rel = path.replace('\\', '/').lstrip('./')
+                        message_text.append(f"Preview:{hidden_url(f'{_GITHUB_RAW_BASE}/{rel}')}")
+                        preview_added = True
+                        break
+
                 for part in ["2-Piece Effect", "4-Piece Effect"]:
                     if part in artifact_info:
-                        summary_parts.append(f"{part}: {shorten(artifact_info[part], 70)}")
-                summary = " | ".join(summary_parts) or "Artifact info"
-                message_text = [display_name, summary]
-                if artifact_files:
+                        message_text.append(f"{part}:\n{artifact_info[part]}")
+
+                if not preview_added and artifact_files:
                     rel = artifact_files[0].replace('\\', '/').lstrip('./')
-                    if rel.startswith(('cards/', 'artifacts/', 'guides/')):
-                        message_text.append(f"{_GITHUB_RAW_BASE}/{rel}")
-                command_text = f"/{key}@{bot_username}" if bot_username else f"/{key}"
-                message_text.append(command_text)
+                    message_text.append(f"Preview:{hidden_url(f'{_GITHUB_RAW_BASE}/{rel}')}")
+
                 results.append(
                     InlineQueryResultArticle(
                         id=f"artifact-{key}",
                         title=f"{display_name} artifact",
-                        description=summary,
+                        description="Artifact effects preview",
                         input_message_content=InputTextMessageContent(
-                            message_text="\n\n".join(message_text)
+                            message_text="\n\n".join(message_text),
+                            parse_mode="HTML"
                         )
                     )
                 )
             elif character_files:
-                rel = character_files[0].replace('\\', '/').lstrip('./')
-                preview_url = None
-                if rel.startswith(('cards/', 'guides/')):
-                    preview_url = f"{_GITHUB_RAW_BASE}/{rel}"
+                cards = []
+                builds = []
+                for path in character_files:
+                    rel = path.replace('\\', '/').lstrip('./')
+                    url = f"{_GITHUB_RAW_BASE}/{rel}"
+                    if rel.startswith('cards/') and url_is_image(rel):
+                        cards.append(url)
+                    elif rel.startswith('guides/') and url_is_image(rel):
+                        builds.append(url)
 
-                description = "Character build preview"
                 message_text = [display_name]
-                if preview_url:
-                    description = "Character preview image"
-                    message_text.append(preview_url)
-                command_text = f"/{key}@{bot_username}" if bot_username else f"/{key}"
-                message_text.append(command_text)
+                if cards:
+                    for idx, url in enumerate(cards, start=1):
+                        message_text.append(f"Card {idx}:{hidden_url(url)}")
+                if builds:
+                    for idx, url in enumerate(builds, start=1):
+                        message_text.append(f"Build {idx}:{hidden_url(url)}")
+
+                if not cards and not builds:
+                    message_text.append("No preview available")
 
                 results.append(
                     InlineQueryResultArticle(
                         id=f"char-{key}",
                         title=display_name,
-                        description=description,
+                        description="Character cards and guides",
                         input_message_content=InputTextMessageContent(
-                            message_text="\n\n".join(message_text)
+                            message_text="\n\n".join(message_text),
+                            parse_mode="HTML"
                         )
                     )
                 )
             else:
-                command_text = f"/{key}@{bot_username}" if bot_username else f"/{key}"
                 results.append(
                     InlineQueryResultArticle(
                         id=f"empty-{key}",
                         title=display_name,
                         description="No preview available",
                         input_message_content=InputTextMessageContent(
-                            message_text=f"{display_name}\n\n{command_text}"
+                            message_text=display_name
                         )
                     )
                 )
