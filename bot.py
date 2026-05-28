@@ -1,47 +1,37 @@
-import asyncio
 import logging
 
-from aiogram import Bot, Dispatcher
+from telegram.ext import ApplicationBuilder, InlineQueryHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
 from data.config import TOKEN
 from utils.helper import send_log, build_character_cache
+from handlers.main import handle_message
+from handlers.inline import inline_search, handle_inline_image_callback
 
-from handlers.inline import router as inline_router
-from handlers.main import router as main_router
 
-
-async def main():
+def main() -> None:
     logging.basicConfig(level=logging.INFO)
 
     if not TOKEN:
         logging.error("BOT_TOKEN not set. Set BOT_TOKEN in environment.")
         return
 
-    bot = Bot(token=TOKEN)
+    app = ApplicationBuilder().token(TOKEN).build()
 
-    dp = Dispatcher()
-
-    dp.include_router(inline_router)
-    dp.include_router(main_router)
+    app.add_handler(InlineQueryHandler(inline_search))
+    app.add_handler(CallbackQueryHandler(handle_inline_image_callback, pattern=r"^img\|"))
+    app.add_handler(MessageHandler(filters.COMMAND, handle_message))
 
     build_character_cache()
 
-    logging.info("Bot started (aiogram v3)")
+    logging.info("Bot started (python-telegram-bot)")
 
-    await send_log(
-        bot,
-        "✅ Bot started successfully"
-    )
+    async def on_startup(application: ContextTypes.DEFAULT_TYPE) -> None:
+        await send_log(application.bot, "✅ Bot started successfully")
 
-    try:
-        await dp.start_polling(
-            bot,
-            skip_updates=True
-        )
+    app.post_init = on_startup
 
-    finally:
-        await bot.session.close()
+    app.run_polling(skip_updates=True)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

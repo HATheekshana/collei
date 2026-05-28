@@ -1,9 +1,10 @@
 import logging
 import os
-from aiogram import Bot
+from telegram import Bot
 from data.config import LOG_CHAT_ID
-from data.config import ARTIFACTS_FOLDER, ARTIFACTS_INFO_FILE,GUIDES_FOLDER, CARDS_FOLDER
+from data.config import ARTIFACTS_FOLDER, ARTIFACTS_INFO_FILE, GUIDES_FOLDER, CARDS_FOLDER
 _character_file_cache = {}
+
 
 async def send_log(bot: Bot, text: str):
     try:
@@ -17,9 +18,10 @@ async def send_log(bot: Bot, text: str):
         )
     except Exception:
         logging.exception("Failed to send log message")
+
+
 def normalize_name(name: str) -> str:
     return name.lower().replace("-", "").replace("_", "").replace(" ", "")
-
 def build_character_cache():
     global _character_file_cache
 
