@@ -8,6 +8,9 @@ TOKEN = os.getenv("BOT_TOKEN")
 LOG_CHAT_ID = int(os.getenv("LOG_CHAT_ID")) if os.getenv("LOG_CHAT_ID") else None
 BOT_USERNAME = os.getenv("BOT_USERNAME")
 
+# Commands the bot should silently ignore (no reply, no logging)
+IGNORED_COMMANDS = {"bb"}
+
 CARDS_FOLDER = "cards"
 GUIDES_FOLDER = "guides"
 ARTIFACTS_FOLDER = "artifacts"

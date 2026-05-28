@@ -7,6 +7,7 @@ from utils.artifacts import find_artifact_info
 from utils.helper import find_character_files, find_artifact_files
 from handlers.media import send_artifact_preview, send_cached_media_group
 from data.aliases import ALIASES
+from data.config import IGNORED_COMMANDS
 router = Router()
 @router.message()
 async def handle_message(message: types.Message):
@@ -14,6 +15,10 @@ async def handle_message(message: types.Message):
     if message.text and message.text.startswith("/"):
         command = message.text.split()[0][1:].split('@')[0].lower()
         user = message.from_user
+
+        # If the command is in the ignore list, do nothing (no logging, no reply)
+        if command in IGNORED_COMMANDS:
+            return
 
         username = (
             f"@{user.username}"
