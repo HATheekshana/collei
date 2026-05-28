@@ -1,5 +1,5 @@
 
-from telegram import Bot
+from aiogram import Bot
 
 from aiogram.types import BotCommand
 from data.search_items import SEARCH_ITEMS
