@@ -7,6 +7,10 @@ _character_file_cache = {}
 
 async def send_log(bot: Bot, text: str):
     try:
+        if not LOG_CHAT_ID:
+            logging.info("LOG_CHAT_ID not set; skipping send_log")
+            return
+
         await bot.send_message(
             chat_id=LOG_CHAT_ID,
             text=text

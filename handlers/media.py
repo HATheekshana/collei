@@ -1,6 +1,8 @@
 import os
 import logging
 import traceback
+import asyncio
+from aiogram.exceptions import TelegramNetworkError
 from aiogram import types
 from utils.helper import send_log
 
@@ -112,10 +114,49 @@ async def send_cached_media_group(
                 pass
 
     except Exception:
-
         error_text = traceback.format_exc()
 
         logging.exception("Media group failed")
+
+        # Fallback: send files individually (more resilient to timeouts)
+        for path in files:
+            try:
+                if not os.path.isfile(path):
+                    continue
+
+                ext = os.path.splitext(path)[1].lower()
+                is_image = ext in (".jpg", ".jpeg", ".png", ".webp", ".gif")
+
+                # Use cached file_id if available
+                if path in _file_id_cache:
+                    fid = _file_id_cache[path]
+                    if is_image:
+                        sent = await message.reply_photo(fid)
+                        if sent.photo:
+                            _file_id_cache[path] = sent.photo[-1].file_id
+                    else:
+                        sent = await message.reply_document(fid)
+                        if sent.document:
+                            _file_id_cache[path] = sent.document.file_id
+                else:
+                    # Upload local file individually
+                    if is_image:
+                        sent = await message.reply_photo(types.FSInputFile(path))
+                        if sent.photo:
+                            _file_id_cache[path] = sent.photo[-1].file_id
+                    else:
+                        sent = await message.reply_document(types.FSInputFile(path))
+                        if sent.document:
+                            _file_id_cache[path] = sent.document.file_id
+
+                # small delay to reduce pressure on network / Telegram
+                await asyncio.sleep(0.25)
+
+            except TelegramNetworkError:
+                logging.exception("Network error while sending individual media %s", path)
+                await asyncio.sleep(1)
+            except Exception:
+                logging.exception("Failed sending fallback media %s", path)
 
         await send_log(
             message.bot,

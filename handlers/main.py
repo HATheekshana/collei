@@ -38,6 +38,23 @@ async def handle_message(message: types.Message):
         if command == "addarti":
             await handle_add_artifact_command(message)
             return
+        if command == "allcommands":
+            # Show a generated list of available commands to the user.
+            try:
+                from data.search_items import SEARCH_ITEMS
+
+                lines = [f"/{k} - {v}" for k, v in sorted(SEARCH_ITEMS.items(), key=lambda t: t[0])]
+                text = "Available commands:\n" + "\n".join(lines)
+
+                # Telegram limits message size; split if necessary
+                MAX = 4000
+                for i in range(0, len(text), MAX):
+                    await message.reply(text[i:i+MAX])
+            except Exception:
+                logging.exception("Failed to build allcommands list")
+                await message.reply("Failed to retrieve commands list.")
+
+            return
 
         artifact_info = find_artifact_info(command)
         artifact_files = find_artifact_files(command)

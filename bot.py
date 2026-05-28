@@ -13,6 +13,10 @@ from handlers.main import router as main_router
 async def main():
     logging.basicConfig(level=logging.INFO)
 
+    if not TOKEN:
+        logging.error("BOT_TOKEN not set. Set BOT_TOKEN in environment.")
+        return
+
     bot = Bot(token=TOKEN)
 
     dp = Dispatcher()
