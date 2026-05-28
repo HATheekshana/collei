@@ -34,7 +34,12 @@ async def inline_search(inline_query: InlineQuery):
             return path.lower().endswith((".jpg", ".jpeg", ".png", ".gif", ".webp"))
 
         for key, display_name in SEARCH_ITEMS.items():
-            if query and query not in normalize_name(key):
+            normalized_key = normalize_name(key)
+            normalized_display = normalize_name(display_name)
+            # match prefix so 'r' finds 'razor', etc.
+            if query and not (
+                normalized_key.startswith(query) or normalized_display.startswith(query)
+            ):
                 continue
 
             artifact_info = find_artifact_info(key)
