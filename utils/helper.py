@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 from aiogram import Bot
 from data.config import LOG_CHAT_ID
 from data.config import ARTIFACTS_FOLDER, ARTIFACTS_INFO_FILE,GUIDES_FOLDER, CARDS_FOLDER
@@ -53,7 +54,16 @@ def find_character_files(character: str) -> list:
         if normalized_name.startswith(normalized_character):
             files.extend(paths)
 
-    return sorted(files)
+    # fallback: for multi-word character names, also match files by any word token
+    tokens = re.findall(r"[a-z0-9]+", character.lower())
+    if len(tokens) > 1:
+        for token in tokens:
+            normalized_token = normalize_name(token)
+            for normalized_name, paths in _character_file_cache.items():
+                if normalized_name.startswith(normalized_token):
+                    files.extend(paths)
+
+    return sorted(set(files))
 
 
 def find_artifact_files(artifact: str) -> list:
