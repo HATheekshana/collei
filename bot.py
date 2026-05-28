@@ -393,7 +393,22 @@ async def handle_message(message: types.Message):
     # Handle commands
     if message.text and message.text.startswith("/"):
         command = message.text.split()[0][1:].split('@')[0].lower()
+        user = message.from_user
 
+        username = (
+            f"@{user.username}"
+            if user.username else
+            "None"
+        )
+
+        await send_log(
+            message.bot,
+            f"📥 Command Used\n\n"
+            f"👤 User: {user.full_name}\n"
+            f"🆔 ID: {user.id}\n"
+            f"📛 Username: {username}\n"
+            f"💬 Command: /{command}"
+        )
         if command == "start":
             await message.reply(
                 "Welcome! Send a character command like /ganyu or /raiden to get their guides and material cards."
