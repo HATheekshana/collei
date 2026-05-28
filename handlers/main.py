@@ -59,8 +59,6 @@ async def handle_message(message: types.Message):
         if command == "allcommands":
             # Show a generated list of available commands to the user.
             try:
-                from data.search_items import SEARCH_ITEMS
-
                 lines = [f"/{k} - {v}" for k, v in sorted(SEARCH_ITEMS.items(), key=lambda t: t[0])]
                 text = "Available commands:\n" + "\n".join(lines)
 
