@@ -155,10 +155,24 @@ async def inline_search(inline_query: InlineQuery):
         logging.exception("Inline query failed")
         results = []
 
+    # If no results found, include a fallback article and a switch-to-PM button
+    if not results:
+        fallback = InlineQueryResultArticle(
+            id="no-results",
+            title="No results — open bot",
+            description="Open the bot to search or try a different query",
+            input_message_content=InputTextMessageContent(
+                message_text="No inline previews available. Open the bot to enable full search."
+            )
+        )
+        results = [fallback]
+
     await inline_query.answer(
         results=results,
         cache_time=1,
-        is_personal=True
+        is_personal=True,
+        switch_pm_text="Open bot for more",
+        switch_pm_parameter="inline"
     )
 
 
