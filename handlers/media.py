@@ -2,7 +2,7 @@ import os
 import logging
 import traceback
 import asyncio
-from telegram import InputMediaPhoto, InputMediaDocument, FSInputFile
+from telegram import InputFile, InputMediaPhoto, InputMediaDocument
 from telegram.error import NetworkError
 from utils.helper import send_log
 
@@ -55,7 +55,7 @@ async def send_cached_media_group(
                 else:
                     media.append(InputMediaDocument(media=file_id))
             else:
-                file = FSInputFile(path)
+                file = InputFile(path)
                 if is_image:
                     media.append(InputMediaPhoto(media=file))
                 else:
@@ -102,11 +102,11 @@ async def send_cached_media_group(
                             _file_id_cache[path] = sent.document.file_id
                 else:
                     if is_image:
-                        sent = await message.reply_photo(FSInputFile(path))
+                        sent = await message.reply_photo(InputFile(path))
                         if sent.photo:
                             _file_id_cache[path] = sent.photo[-1].file_id
                     else:
-                        sent = await message.reply_document(FSInputFile(path))
+                        sent = await message.reply_document(InputFile(path))
                         if sent.document:
                             _file_id_cache[path] = sent.document.file_id
 
