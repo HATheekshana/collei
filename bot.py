@@ -2,21 +2,20 @@ import os
 import json
 import logging
 import asyncio
-import time
 import re
+import traceback
+from dotenv import load_dotenv
 from aiogram import Bot, Router, Dispatcher, types
-try:
-    import genshin_db
-except ImportError:
-    genshin_db = None
 
-TOKEN = "8834632447:AAF5vqYp9N31Q8ANMk2tg0ukA8JOiu4R4tk"
+load_dotenv()
+TOKEN = os.getenv("BOT_TOKEN")
 
 CARDS_FOLDER = "cards"
 GUIDES_FOLDER = "guides"
 ARTIFACTS_FOLDER = "artifacts"
 ARTIFACTS_INFO_FILE = os.path.join(ARTIFACTS_FOLDER, "info.json")
 ADMIN_IDS = {1675903713}
+LOG_CHAT_ID = int(os.getenv("LOG_CHAT_ID"))
 
 ALIASES = {
     "yunjin": "yun jin",
@@ -26,36 +25,55 @@ ALIASES = {
 }
 
 _artifact_info_cache = None
-
+_character_file_cache = {}
+_file_id_cache = {}
+async def send_log(bot: Bot, text: str):
+    try:
+        await bot.send_message(
+            chat_id=LOG_CHAT_ID,
+            text=text
+        )
+    except Exception:
+        logging.exception("Failed to send log message")
+        
 def normalize_name(name: str) -> str:
     return name.lower().replace("-", "").replace("_", "").replace(" ", "")
 
-def find_character_files(character: str) -> list:
-    files = []
-    normalized_character = (
-        character.lower()
-        .replace("-", "")
-        .replace("_", "")
-        .replace(" ", "")
-    )
-    
+def build_character_cache():
+    global _character_file_cache
+
+    _character_file_cache = {}
+
     for folder in [GUIDES_FOLDER, CARDS_FOLDER]:
         if not os.path.isdir(folder):
             continue
-        
+
         for fname in os.listdir(folder):
-            # Remove extension before normalization
+            path = os.path.join(folder, fname)
+
             name_without_ext = os.path.splitext(fname)[0]
-            normalized_file = (
-                name_without_ext.lower()
-                .replace("-", "")
-                .replace("_", "")
-                .replace(" ", "")
-            )
-            
-            if normalized_file.startswith(normalized_character):
-                files.append(os.path.join(folder, fname))
-    
+            normalized = normalize_name(name_without_ext)
+
+            if normalized not in _character_file_cache:
+                _character_file_cache[normalized] = []
+
+            _character_file_cache[normalized].append(path)
+
+
+def find_character_files(character: str) -> list:
+    global _character_file_cache
+
+    if not _character_file_cache:
+        build_character_cache()
+
+    normalized_character = normalize_name(character)
+
+    files = []
+
+    for normalized_name, paths in _character_file_cache.items():
+        if normalized_name.startswith(normalized_character):
+            files.extend(paths)
+
     return sorted(files)
 
 
@@ -121,22 +139,6 @@ def find_artifact_info(artifact: str) -> dict | None:
     for normalized_name, entry in artifact_info.items():
         if normalized_name.startswith(normalized_artifact):
             return entry
-    
-    # Fallback to genshin-db if not found in info.json
-    if genshin_db:
-        try:
-            db_artifact = genshin_db.artifacts(name=artifact)
-            if db_artifact:
-                entry = {"name": db_artifact.get("name", artifact)}
-                # Map genshin-db structure to our format
-                if "2pc" in db_artifact:
-                    entry["2-Piece Effect"] = db_artifact["2pc"]
-                if "4pc" in db_artifact:
-                    entry["4-Piece Effect"] = db_artifact["4pc"]
-                return entry if entry.get("2-Piece Effect") or entry.get("4-Piece Effect") else None
-        except Exception:
-            logging.debug("genshin-db lookup failed for artifact: %s", artifact)
-    
     return None
 
 
@@ -226,7 +228,8 @@ def save_artifact_info_entry(entry: dict) -> bool:
         with open(ARTIFACTS_INFO_FILE, "w", encoding="utf-8") as fh:
             json.dump(save_data, fh, ensure_ascii=False, indent=2)
         global _artifact_info_cache
-        _artifact_info_cache = load_artifact_info()
+        _artifact_info_cache = None
+        load_artifact_info()
         return True
     except Exception:
         logging.exception("Failed to save artifact info")
@@ -264,49 +267,117 @@ async def handle_add_artifact_command(message: types.Message):
     await message.reply(f"Artifact info saved for {artifact_name} ({saved_fields}).")
 
 
-async def send_artifact_preview(message: types.Message, image_name: str, caption: str | None = None):
+async def send_artifact_preview(
+    message: types.Message,
+    image_name: str,
+    caption: str | None = None
+):
     repo_raw_url = "https://raw.githubusercontent.com/HATheekshana/collei/main/artifacts"
-    timestamp = int(time.time())
-    full_image_url = f"{repo_raw_url}/{image_name}?v={timestamp}"
+
+    full_image_url = f"{repo_raw_url}/{image_name}"
+
     hidden_link = f'<a href="{full_image_url}">&#8203;</a>'
 
     text = hidden_link
+
     if caption:
         text += caption
 
     await message.reply(text, parse_mode="HTML")
+async def send_cached_media_group(
+    message: types.Message,
+    files: list[str]
+):
+    global _file_id_cache
 
+    media = []
 
-async def send_media(message: types.Message, media: list, caption: str | None = None):
+    for path in files:
+
+        if not os.path.isfile(path):
+            continue
+
+        ext = os.path.splitext(path)[1].lower()
+
+        is_image = ext in (
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp",
+            ".gif"
+        )
+
+        try:
+            # Use cached file_id
+            if path in _file_id_cache:
+
+                file_id = _file_id_cache[path]
+
+                if is_image:
+                    media.append(
+                        types.InputMediaPhoto(
+                            media=file_id
+                        )
+                    )
+                else:
+                    media.append(
+                        types.InputMediaDocument(
+                            media=file_id
+                        )
+                    )
+
+            else:
+                # Upload local file
+                file = types.FSInputFile(path)
+
+                if is_image:
+                    media.append(
+                        types.InputMediaPhoto(
+                            media=file
+                        )
+                    )
+                else:
+                    media.append(
+                        types.InputMediaDocument(
+                            media=file
+                        )
+                    )
+
+        except Exception:
+            logging.exception(
+                "Failed preparing media %s",
+                path
+            )
+
     if not media:
         return
-    if len(media) == 1:
-        single = media[0]
-        if isinstance(single, types.InputMediaPhoto):
-            if caption:
-                await message.answer_document(
-                    document=single.media,
-                    caption=caption,
-                    parse_mode="HTML",
-                )
-            else:
-                await message.answer_photo(
-                    photo=single.media,
-                    caption=caption,
-                    parse_mode="HTML",
-                )
-        else:
-            await message.answer_document(
-                document=single.media,
-                caption=caption,
-                parse_mode="HTML",
-            )
-        return
 
-    if caption and hasattr(media[0], "caption"):
-        media[0].caption = caption
-        media[0].parse_mode = "HTML"
-    await message.reply_media_group(media)
+    try:
+        sent_messages = await message.answer_media_group(media)
+
+        # Cache uploaded file_ids
+        for path, sent in zip(files, sent_messages):
+
+            try:
+                if sent.photo:
+                    _file_id_cache[path] = sent.photo[-1].file_id
+
+                elif sent.document:
+                    _file_id_cache[path] = sent.document.file_id
+
+            except Exception:
+                pass
+
+    except Exception:
+
+        error_text = traceback.format_exc()
+
+        logging.exception("Media group failed")
+
+        await send_log(
+            message.bot,
+            f"❌ Media group failed\n\n{error_text[:3500]}"
+        )
 
 
 router = Router()
@@ -371,47 +442,37 @@ async def handle_message(message: types.Message):
             await message.reply(f"No files found for {character.title()}.")
             return
 
-        # Collect image files for media group
-        media = []
-        for path in files[:10]:  # Telegram limit: 10 media per group
-            try:
-                if not os.path.isfile(path):
-                    logging.warning("Not a file: %s", path)
-                    continue
-                ext = os.path.splitext(path)[1].lower()
-                if ext in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
-                    media.append(types.InputMediaPhoto(media=types.FSInputFile(path)))
-                else:
-                    media.append(types.InputMediaDocument(media=types.FSInputFile(path)))
-            except Exception:
-                logging.exception("Failed to process %s", path)
+        
+        # Telegram allows max 10 media per album
+        CHUNK_SIZE = 10
 
-        # Send media group or single file if we have media
-        if media:
-            await send_media(message, media)
+        for i in range(0, len(files), CHUNK_SIZE):
 
-        # Send remaining files individually (if more than 10)
-        for path in files[10:]:
-            try:
-                if not os.path.isfile(path):
-                    continue
-                ext = os.path.splitext(path)[1].lower()
-                if ext in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
-                    await message.reply_photo(types.FSInputFile(path))
-                else:
-                    await message.reply_document(types.FSInputFile(path))
-            except Exception:
-                logging.exception("Failed to send %s", path)
+            chunk = files[i:i + CHUNK_SIZE]
+
+            await send_cached_media_group(
+                message,
+                chunk
+            )
 
 
 async def main():
     logging.basicConfig(level=logging.INFO)
+
     bot = Bot(token=TOKEN)
+
     dp = Dispatcher()
     dp.include_router(router)
 
+    build_character_cache()
+
     logging.info("Bot started (aiogram v3)")
-    await dp.start_polling(bot, skip_updates=True)
+    await send_log(bot, "✅ Bot started successfully")
+
+    try:
+        await dp.start_polling(bot, skip_updates=True)
+    finally:
+        await bot.session.close()
 
 
 if __name__ == "__main__":
