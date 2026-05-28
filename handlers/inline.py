@@ -110,16 +110,8 @@ async def inline_search(inline_query: InlineQuery):
 
                 message_text = [display_name]
                 if preview_url:
-                    message_text.append(f"{hidden_url(preview_url)}")
-
-                if cards:
-                    for idx, url in enumerate(cards, start=1):
-                        message_text.append(f"{hidden_url(url)}")
-                if builds:
-                    for idx, url in enumerate(builds, start=1):
-                        message_text.append(f"{hidden_url(url)}")
-
-                if not cards and not builds:
+                    message_text.append(f"Preview:{hidden_url(preview_url)}")
+                else:
                     message_text.append("No preview available")
 
                 # build keyboard to cycle character previews
