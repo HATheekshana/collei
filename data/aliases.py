@@ -3,4 +3,5 @@ ALIASES = {
     "heizou": "shikanoin heizou",
     "shinobu": "kuki shinobu",
     "kujousara": "kujou sara",
+    "kujou": "kujou sara",
 }
