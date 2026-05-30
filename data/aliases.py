@@ -4,4 +4,5 @@ ALIASES = {
     "shinobu": "kuki shinobu",
     "kujousara": "kujou sara",
     "kujou": "kujou sara",
+    "reverie": "Unfinished Reverie"
 }
