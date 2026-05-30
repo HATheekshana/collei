@@ -2,6 +2,7 @@ import asyncio
 import logging
 
 from aiogram import Bot, Dispatcher
+from aiogram.client.session.aiohttp import AiohttpSession
 
 from data.config import TOKEN
 from utils.helper import send_log, build_character_cache
@@ -10,6 +11,8 @@ from handlers.inline import router as inline_router
 from handlers.main import router as main_router
 
 from utils.commands import set_commands
+
+
 async def main():
     logging.basicConfig(level=logging.INFO)
 
@@ -17,7 +20,14 @@ async def main():
         logging.error("BOT_TOKEN not set. Set BOT_TOKEN in environment.")
         return
 
-    bot = Bot(token=TOKEN)
+    session = AiohttpSession(
+        api="http://telegram-bot-api:8081"
+    )
+
+    bot = Bot(
+        token=TOKEN,
+        session=session
+    )
 
     dp = Dispatcher()
 
