@@ -2,7 +2,9 @@ import asyncio
 import logging
 
 from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
+from aiogram.client.telegram import TelegramAPIServer
 
 from data.config import TOKEN
 from utils.helper import send_log, build_character_cache
@@ -17,17 +19,31 @@ async def main():
     logging.basicConfig(level=logging.INFO)
 
     if not TOKEN:
-        logging.error("BOT_TOKEN not set. Set BOT_TOKEN in environment.")
+        logging.error("BOT_TOKEN not set")
         return
 
-    session = AiohttpSession(
-        api="http://telegram-bot-api:8081"
+    api = TelegramAPIServer.from_base(
+        "http://telegram-bot-api:8081"
     )
+
+    session = AiohttpSession(api=api)
 
     bot = Bot(
         token=TOKEN,
-        session=session
+        session=session,
+        default=DefaultBotProperties()
     )
+
+    try:
+        me = await bot.get_me()
+        logging.info(
+            f"Connected to @{me.username} ({me.id})"
+        )
+    except Exception:
+        logging.exception(
+            "Cannot connect to Telegram Bot API"
+        )
+        return
 
     dp = Dispatcher()
 
@@ -35,20 +51,31 @@ async def main():
     dp.include_router(main_router)
 
     build_character_cache()
-    await set_commands(bot)
-    logging.info("Bot started (aiogram v3)")
 
-    await send_log(
-        bot,
-        "✅ Bot started successfully"
-    )
+    try:
+        await set_commands(bot)
+    except Exception:
+        logging.exception(
+            "Could not register bot commands"
+        )
+
+    logging.info("Bot started")
+
+    try:
+        await send_log(
+            bot,
+            "✅ Bot started successfully"
+        )
+    except Exception:
+        logging.exception(
+            "Failed to send log message"
+        )
 
     try:
         await dp.start_polling(
             bot,
             skip_updates=True
         )
-
     finally:
         await bot.session.close()
 
