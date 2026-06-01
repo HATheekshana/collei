@@ -29,12 +29,12 @@ async def send_artifact_preview(
 async def send_cached_media_group(
     message: types.Message,
     files: list[str],
-    caption: str | None = None   # ✅ NEW
+    caption: str | None = None
 ):
     global _file_id_cache
 
     media = []
-    first_added = False  # ✅ caption control
+    first_added = False
 
     for path in files:
 
@@ -52,30 +52,29 @@ async def send_cached_media_group(
         )
 
         try:
-            # Use cached file_id
+            # -------------------------
+            # SOURCE (cached or local)
+            # -------------------------
             if path in _file_id_cache:
-                file_id = _file_id_cache[path]
-
-                if is_image:
-                    item = types.InputMediaPhoto(media=file_id)
-                else:
-                    item = types.InputMediaDocument(media=file_id)
-
+                media_source = _file_id_cache[path]
             else:
-                # Upload local file
-                file = types.FSInputFile(path)
+                media_source = types.FSInputFile(path)
 
-                if is_image:
-                    item = types.InputMediaPhoto(media=file)
+            # -------------------------
+            # BUILD MEDIA ITEM
+            # -------------------------
+            if is_image:
+                if caption and not first_added:
+                    item = types.InputMediaPhoto(
+                        media=media_source,
+                        caption=caption,
+                        parse_mode="HTML"
+                    )
+                    first_added = True
                 else:
-                    item = types.InputMediaDocument(media=file)
-
-            # ✅ ADD CAPTION ONLY TO FIRST IMAGE
-            if not first_added and is_image:
-                if caption:
-                    item.caption = caption
-                    item.parse_mode = "HTML"
-                first_added = True
+                    item = types.InputMediaPhoto(media=media_source)
+            else:
+                item = types.InputMediaDocument(media=media_source)
 
             media.append(item)
 
@@ -93,7 +92,9 @@ async def send_cached_media_group(
             )
         )
 
-        # Cache uploaded file_ids
+        # -------------------------
+        # CACHE FILE IDS
+        # -------------------------
         for path, sent in zip(files, sent_messages):
 
             try:
@@ -110,7 +111,9 @@ async def send_cached_media_group(
         error_text = traceback.format_exc()
         logging.exception("Media group failed")
 
-        # Fallback: send individually
+        # -------------------------
+        # FALLBACK
+        # -------------------------
         for path in files:
             try:
                 if not os.path.isfile(path):
