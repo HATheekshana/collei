@@ -154,12 +154,16 @@ async def handle_message(message: types.Message):
         
         # Telegram allows max 10 media per album
         CHUNK_SIZE = 10
-
+        caption = (
+                "Artifacts moved to inline mode.\n"
+                "Use @collei_help_bot + name to search."
+            )
         for i in range(0, len(files), CHUNK_SIZE):
 
             chunk = files[i:i + CHUNK_SIZE]
 
             await send_cached_media_group(
                 message,
-                chunk
+                chunk,
+                caption=caption
             )

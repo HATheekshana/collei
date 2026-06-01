@@ -24,13 +24,17 @@ async def send_artifact_preview(
         text += caption
 
     await message.reply(text, parse_mode="HTML")
+
+
 async def send_cached_media_group(
     message: types.Message,
-    files: list[str]
+    files: list[str],
+    caption: str | None = None   # ✅ NEW
 ):
     global _file_id_cache
 
     media = []
+    first_added = False  # ✅ caption control
 
     for path in files:
 
@@ -50,44 +54,33 @@ async def send_cached_media_group(
         try:
             # Use cached file_id
             if path in _file_id_cache:
-
                 file_id = _file_id_cache[path]
 
                 if is_image:
-                    media.append(
-                        types.InputMediaPhoto(
-                            media=file_id
-                        )
-                    )
+                    item = types.InputMediaPhoto(media=file_id)
                 else:
-                    media.append(
-                        types.InputMediaDocument(
-                            media=file_id
-                        )
-                    )
+                    item = types.InputMediaDocument(media=file_id)
 
             else:
                 # Upload local file
                 file = types.FSInputFile(path)
 
                 if is_image:
-                    media.append(
-                        types.InputMediaPhoto(
-                            media=file
-                        )
-                    )
+                    item = types.InputMediaPhoto(media=file)
                 else:
-                    media.append(
-                        types.InputMediaDocument(
-                            media=file
-                        )
-                    )
+                    item = types.InputMediaDocument(media=file)
+
+            # ✅ ADD CAPTION ONLY TO FIRST IMAGE
+            if not first_added and is_image:
+                if caption:
+                    item.caption = caption
+                    item.parse_mode = "HTML"
+                first_added = True
+
+            media.append(item)
 
         except Exception:
-            logging.exception(
-                "Failed preparing media %s",
-                path
-            )
+            logging.exception("Failed preparing media %s", path)
 
     if not media:
         return
@@ -115,10 +108,9 @@ async def send_cached_media_group(
 
     except Exception:
         error_text = traceback.format_exc()
-
         logging.exception("Media group failed")
 
-        # Fallback: send files individually (more resilient to timeouts)
+        # Fallback: send individually
         for path in files:
             try:
                 if not os.path.isfile(path):
@@ -127,9 +119,9 @@ async def send_cached_media_group(
                 ext = os.path.splitext(path)[1].lower()
                 is_image = ext in (".jpg", ".jpeg", ".png", ".webp", ".gif")
 
-                # Use cached file_id if available
                 if path in _file_id_cache:
                     fid = _file_id_cache[path]
+
                     if is_image:
                         sent = await message.reply_photo(fid)
                         if sent.photo:
@@ -138,8 +130,8 @@ async def send_cached_media_group(
                         sent = await message.reply_document(fid)
                         if sent.document:
                             _file_id_cache[path] = sent.document.file_id
+
                 else:
-                    # Upload local file individually
                     if is_image:
                         sent = await message.reply_photo(types.FSInputFile(path))
                         if sent.photo:
@@ -149,12 +141,12 @@ async def send_cached_media_group(
                         if sent.document:
                             _file_id_cache[path] = sent.document.file_id
 
-                # small delay to reduce pressure on network / Telegram
                 await asyncio.sleep(0.25)
 
             except TelegramNetworkError:
-                logging.exception("Network error while sending individual media %s", path)
+                logging.exception("Network error while sending %s", path)
                 await asyncio.sleep(1)
+
             except Exception:
                 logging.exception("Failed sending fallback media %s", path)
 
