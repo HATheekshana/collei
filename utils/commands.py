@@ -34,7 +34,7 @@ async def set_commands(bot: Bot):
                 commands.append(
                     BotCommand(
                         command=safe_key,
-                        description=value[:100],
+                        description=value[:200],
                     )
                 )
 
