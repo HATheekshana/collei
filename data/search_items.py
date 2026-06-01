@@ -119,7 +119,7 @@ SEARCH_ITEMS = {
     # Artifacts
     "archaic": "Archaic Petra",
     "aubade": "Aubade of Morningstar and Moon",
-    "blizzard1": "Blizzard Strayer",
+    "blizzardstrayer": "BlizzardStrayer",
     "bloodstained": "Bloodstained Chivalry",
     "celestial": "Celestial Gift",
     "crimson": "Crimson Witch of Flames",
