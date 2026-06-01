@@ -119,7 +119,7 @@ SEARCH_ITEMS = {
     # Artifacts
     "archaic": "Archaic Petra",
     "aubade": "Aubade of Morningstar and Moon",
-    "blizzard": "Blizzard Strayer",
+    "blizzard1": "Blizzard Strayer",
     "bloodstained": "Bloodstained Chivalry",
     "celestial": "Celestial Gift",
     "crimson": "Crimson Witch of Flames",
@@ -160,6 +160,7 @@ SEARCH_ITEMS = {
     "viridescent": "Viridescent Venerer",
     "vourukasha": "Vourukasha's Glow",
     "wanderertroupe": "Wanderer's Troupe",
+    "Thundersoothersheart": "Thundersoother's Heart",
 }
 COMMAND = {
     "aino": "Aino",
