@@ -6,6 +6,8 @@ from aiogram.types import (
     BotCommand,
     BotCommandScopeDefault,
     BotCommandScopeAllPrivateChats,
+    BotCommandScopeAllGroupChats,
+    BotCommandScopeAllChatAdministrators,
 )
 
 from data.search_items import COMMAND
@@ -14,8 +16,8 @@ MAX_BOT_COMMANDS = 100
 
 DEFAULT_COMMANDS = [
     BotCommand(command="start", description="Show welcome message"),
-    BotCommand(command="allcommands", description="List every available search command"),
-    BotCommand(command="addarti", description="Add a new artifact"),
+    BotCommand(command="allcommands", description="List all commands"),
+    BotCommand(command="addarti", description="Add artifact"),
 ]
 
 
@@ -23,37 +25,47 @@ async def set_commands(bot: Bot):
     try:
         commands = DEFAULT_COMMANDS.copy()
 
-        # Add dynamic commands safely
         remaining = MAX_BOT_COMMANDS - len(commands)
 
         if remaining > 0:
             for key, value in list(COMMAND.items())[:remaining]:
-                # Telegram command rules: lowercase, no spaces
                 safe_key = key.lower().replace(" ", "_")
 
                 commands.append(
                     BotCommand(
                         command=safe_key,
-                        description=value[:100],  # Telegram max description length safety
+                        description=value[:100],
                     )
                 )
 
-        # 1️⃣ Default scope (global)
-        await bot.set_my_commands(
-            commands,
-            scope=BotCommandScopeDefault()
-        )
-
-        # 2️⃣ Private chats scope (fixes "OFF" issue in many cases)
+        # 1️⃣ Private chats
         await bot.set_my_commands(
             commands,
             scope=BotCommandScopeAllPrivateChats()
         )
 
-        logging.info("Bot commands successfully registered (%d commands)", len(commands))
+        # 2️⃣ Groups
+        await bot.set_my_commands(
+            commands,
+            scope=BotCommandScopeAllGroupChats()
+        )
+
+        # 3️⃣ Group admins / full control
+        await bot.set_my_commands(
+            commands,
+            scope=BotCommandScopeAllChatAdministrators()
+        )
+
+        # 4️⃣ Default fallback (VERY IMPORTANT for BotFather UI)
+        await bot.set_my_commands(
+            commands,
+            scope=BotCommandScopeDefault()
+        )
+
+        logging.info("Commands registered for ALL scopes (%d commands)", len(commands))
 
     except TelegramBadRequest as exc:
         logging.warning("Telegram rejected command registration: %s", exc)
 
     except Exception as exc:
-        logging.exception("Unexpected error registering bot commands: %s", exc)
+        logging.exception("Unexpected error: %s", exc)
