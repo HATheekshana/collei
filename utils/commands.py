@@ -12,7 +12,7 @@ from aiogram.types import (
 
 from data.search_items import COMMAND
 
-MAX_BOT_COMMANDS = 100
+MAX_BOT_COMMANDS = 200
 
 DEFAULT_COMMANDS = [
     BotCommand(command="start", description="Show welcome message"),
