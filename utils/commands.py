@@ -16,6 +16,7 @@ MAX_BOT_COMMANDS = 200
 
 DEFAULT_COMMANDS = [
     BotCommand(command="start", description="Show welcome message"),
+    BotCommand(command="search", description="Search characters and artifacts"),
     BotCommand(command="allcommands", description="List all commands"),
     BotCommand(command="addarti", description="Add artifact"),
 ]

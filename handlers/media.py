@@ -1,10 +1,14 @@
 import os
+import html
 import logging
 import traceback
 import asyncio
+from urllib.parse import quote
 from aiogram.exceptions import TelegramNetworkError
-from aiogram import types
+from aiogram import Bot, types
 from utils.helper import send_log
+
+_GITHUB_RAW_BASE = "https://raw.githubusercontent.com/HATheekshana/collei/main"
 
 _file_id_cache = {}
 async def send_artifact_preview(
@@ -24,6 +28,91 @@ async def send_artifact_preview(
         text += caption
 
     await message.reply(text, parse_mode="HTML")
+
+
+def _github_raw_url(path: str) -> str:
+    rel = path.replace("\\", "/").lstrip("./")
+    if os.path.isabs(rel):
+        root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        rel = os.path.relpath(path, root).replace("\\", "/")
+    return f"{_GITHUB_RAW_BASE}/{quote(rel, safe='/:')}"
+
+
+def _supported_rich_media(path: str) -> bool:
+    ext = os.path.splitext(path)[1].lower()
+    return ext in (".jpg", ".jpeg", ".png", ".webp", ".gif", ".mp4", ".webm")
+
+
+def _rich_media_tag(path: str) -> str:
+    ext = os.path.splitext(path)[1].lower()
+    url = _github_raw_url(path)
+    if ext in (".jpg", ".jpeg", ".png", ".webp", ".gif"):
+        return f'<img src="{url}"/>'
+    return f'<video src="{url}"/>'
+
+
+async def _raw_api_request(bot: Bot, method: str, payload: dict) -> dict:
+    session = getattr(bot, "session", None)
+    if session is None:
+        raise RuntimeError("Bot session not available for raw API request")
+
+    client = await session.create_session()
+    url = session.api.api_url(token=bot.token, method=method)
+
+    async with client.post(url, json=payload, timeout=session.timeout) as resp:
+        text = await resp.text()
+
+    try:
+        data = session.json_loads(text)
+    except Exception as error:
+        raise RuntimeError(
+            f"Failed to decode {method} response: {error}\n{text}"
+        ) from error
+
+    if not data.get("ok", False):
+        raise RuntimeError(
+            f"{method} failed: {data.get('description', text)}"
+        )
+
+    return data["result"]
+
+
+async def send_rich_slideshow(
+    message: types.Message,
+    files: list[str],
+    caption: str | None = None,
+) -> bool:
+    blocks = []
+
+    for path in files:
+        if not os.path.isfile(path):
+            continue
+        if not _supported_rich_media(path):
+            continue
+        blocks.append(_rich_media_tag(path))
+
+    if not blocks:
+        return False
+
+    slideshow = "<tg-slideshow>" + "".join(blocks)
+    if caption:
+        slideshow += f"<figcaption>{html.escape(caption)}</figcaption>"
+    slideshow += "</tg-slideshow>"
+
+    payload = {
+        "chat_id": message.chat.id,
+        "rich_message": {
+            "html": slideshow,
+        },
+    }
+
+    if message.message_thread_id:
+        payload["message_thread_id"] = message.message_thread_id
+
+    payload["reply_parameters"] = {"message_id": message.message_id}
+
+    await _raw_api_request(message.bot, "sendRichMessage", payload)
+    return True
 
 
 async def send_cached_media_group(

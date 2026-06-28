@@ -5,7 +5,8 @@ from utils.helper import send_log
 from handlers.admin import handle_add_artifact_command
 from utils.artifacts import find_artifact_info
 from utils.helper import find_character_files, find_artifact_files
-from handlers.media import send_artifact_preview, send_cached_media_group
+from handlers.media import send_rich_slideshow
+from utils.search import find_search_matches, render_search_keyboard, send_search_result
 from data.aliases import ALIASES
 from data.search_items import SEARCH_ITEMS
 from data.config import BOT_USERNAME
@@ -20,7 +21,7 @@ async def handle_message(message: types.Message):
         user = message.from_user
 
         # Special commands that are always allowed
-        SPECIAL_COMMANDS = {"start", "addarti", "allcommands"}
+        SPECIAL_COMMANDS = {"start", "search", "addarti", "allcommands"}
         
         # If the command is not in SEARCH_ITEMS and not a special command and not an alias, ignore it silently
         should_ignore = command not in SEARCH_ITEMS and command not in SPECIAL_COMMANDS and command not in ALIASES
@@ -108,6 +109,30 @@ async def handle_message(message: types.Message):
 
             return
 
+        if command == "search":
+            query = message.text.partition(" ")[2].strip()
+            if not query:
+                await message.reply("Usage: /search [name]\nExample: /search collei")
+                return
+
+            matches = find_search_matches(query)
+            if not matches:
+                await message.reply(
+                    "No search results found. Try another keyword or /allcommands."
+                )
+                return
+
+            if len(matches) == 1:
+                await send_search_result(message, matches[0])
+                return
+
+            keyboard = render_search_keyboard(matches, message.from_user.id)
+            await message.reply(
+                f"Search results for \"{query}\":",
+                reply_markup=keyboard,
+            )
+            return
+
         artifact_info = find_artifact_info(command)
         artifact_files = find_artifact_files(command)
 
@@ -121,26 +146,19 @@ async def handle_message(message: types.Message):
                 artifact_caption = "\n\n".join(info_lines)
 
             if artifact_files:
-                # Prefer sending remote previews from the GitHub artifacts folder
-                # This uses a hidden zero-width-space link so Telegram shows the image preview
                 for idx, path in enumerate(artifact_files):
                     try:
-                        fname = os.path.basename(path)
-                        ext = os.path.splitext(fname)[1].lower()
-                        if ext not in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
-                            # fallback to sending the local file if it's not an image
-                            if os.path.isfile(path):
-                                await message.reply_document(types.FSInputFile(path))
-                            continue
-
-                        cap = artifact_caption if idx == 0 else None
-                        await send_artifact_preview(message, fname, caption=cap)
+                        if idx == 0:
+                            await message.reply_photo(
+                                types.FSInputFile(path),
+                                caption=artifact_caption,
+                                parse_mode="HTML"
+                            )
+                        else:
+                            await message.reply_photo(types.FSInputFile(path))
                     except Exception:
-                        logging.exception("Failed to send preview %s", path)
-
-                artifact_caption = None
-
-            if artifact_caption:
+                        logging.exception("Failed to send artifact photo %s", path)
+            elif artifact_caption:
                 await message.reply(artifact_caption, parse_mode="HTML")
             return
 
@@ -151,19 +169,56 @@ async def handle_message(message: types.Message):
             await message.reply(f"No files found for {character.title()}.")
             return
 
-        
-        # Telegram allows max 10 media per album
-        CHUNK_SIZE = 10
+        # Send rich slideshow with character files.
+        CHUNK_SIZE = 50
         caption = (
                 "Artifacts moved to inline mode.\n"
                 "Use @collei_help_bot + name to search."
             )
         for i in range(0, len(files), CHUNK_SIZE):
-
             chunk = files[i:i + CHUNK_SIZE]
+            chunk_caption = caption if i == 0 else None
 
-            await send_cached_media_group(
-                message,
-                chunk,
-                caption=caption
-            )
+            try:
+                await send_rich_slideshow(
+                    message,
+                    chunk,
+                    caption=chunk_caption,
+                )
+            except Exception:
+                logging.exception("Rich slideshow failed")
+
+
+@router.callback_query(lambda c: c.data and c.data.startswith("search|"))
+async def handle_search_button(callback: types.CallbackQuery):
+    try:
+        await callback.answer()
+    except Exception:
+        pass
+
+    parts = callback.data.split("|", 2)
+    if len(parts) != 3:
+        return
+
+    try:
+        user_id = int(parts[1])
+    except ValueError:
+        return
+
+    if callback.from_user.id != user_id:
+        try:
+            await callback.answer("This button is not for you.", show_alert=True)
+        except Exception:
+            pass
+        return
+
+    key = parts[2]
+    if not callback.message:
+        return
+
+    await send_search_result(callback.message, key)
+
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
