@@ -2,9 +2,10 @@ import difflib
 import re
 from aiogram import types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from utils.helper import normalize_name
+from utils.helper import normalize_name, resolve_character_media
+from handlers.media import send_media_slideshow
 from utils.artifacts import find_artifact_info
-from utils.helper import find_character_files, find_artifact_files
+from utils.helper import find_artifact_files
 from data.search_items import SEARCH_ITEMS
 
 
@@ -117,10 +118,9 @@ def render_search_keyboard(keys: list[str], user_id: int) -> InlineKeyboardMarku
 
 
 async def send_search_result(message: types.Message, key: str):
-    from handlers.media import send_rich_slideshow
     from utils.bosses import find_boss
 
-    # --- Boss check first ---
+    # --- Boss check ---
     display_name = SEARCH_ITEMS.get(key, key.title())
     boss = find_boss(display_name)
     if boss and boss.get("file_id"):
@@ -134,9 +134,9 @@ async def send_search_result(message: types.Message, key: str):
             pass
         return
 
+    # --- Artifact check ---
     artifact_info = find_artifact_info(key)
     artifact_files = find_artifact_files(key)
-    character_files = find_character_files(key)
 
     if artifact_info or artifact_files:
         caption = None
@@ -160,18 +160,14 @@ async def send_search_result(message: types.Message, key: str):
                         await message.reply_photo(types.FSInputFile(path))
                 except Exception:
                     pass
-            return
-
-    if character_files:
-        CHUNK_SIZE = 50
-        caption = SEARCH_ITEMS.get(key, key.title())
-        for i in range(0, len(character_files), CHUNK_SIZE):
-            chunk = character_files[i:i + CHUNK_SIZE]
-            chunk_caption = caption if i == 0 else None
-            try:
-                await send_rich_slideshow(message, chunk, caption=chunk_caption)
-            except Exception:
-                pass
         return
 
-    await message.reply(f"No files found for {key.title()}.")
+    # --- Character cards + guides ---
+    media_items = await resolve_character_media(message.bot, key)
+
+    if not media_items:
+        await message.reply(f"No files found for {key.title()}.")
+        return
+
+    caption = SEARCH_ITEMS.get(key, key.title())
+    await send_media_slideshow(message, media_items, caption=caption)

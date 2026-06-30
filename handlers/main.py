@@ -1,46 +1,52 @@
 import logging
 import os
-from aiogram import Router, types, F
-from utils.helper import send_log
+from aiogram import Router, types
+from utils.helper import send_log, resolve_character_media
 from handlers.admin import handle_add_artifact_command
 from handlers.boss_admin import handle_bossimg_command
+from handlers.card_guide_admin import handle_addcard_command, handle_addguide_command, handle_delcard_command, handle_delguide_command
 from utils.bosses import find_boss
 from utils.artifacts import find_artifact_info
-from utils.helper import find_character_files, find_artifact_files
-from handlers.media import send_rich_slideshow
+from utils.helper import find_artifact_files
+from handlers.media import send_cached_media_group, send_media_slideshow
 from utils.search import find_search_matches, render_search_keyboard, send_search_result
 from data.aliases import ALIASES
 from data.search_items import SEARCH_ITEMS
 from data.config import BOT_USERNAME
+
 router = Router()
 
-@router.message(F.text.startswith("/"))
+
+async def _send_character_results(message: types.Message, character: str):
+    """Resolve media (imgBB URL preferred, Telegram file_id fallback) and send as rich slideshow."""
+    media_items = await resolve_character_media(message.bot, character)
+
+    if not media_items:
+        await message.reply(f"No files found for {character.title()}.")
+        return
+
+    await send_media_slideshow(message, media_items, caption=character.title())
+
+
+@router.message()
 async def handle_message(message: types.Message):
     logging.info(f"Message received: {message.text}")
-    # Handle commands
     if message.text and message.text.startswith("/"):
         command = message.text.split()[0][1:].split('@')[0].lower()
         logging.info(f"Command extracted: {command}")
         user = message.from_user
 
-        # Special commands that are always allowed
-        SPECIAL_COMMANDS = {"start", "search", "addarti", "allcommands", "bossimg"}
-        
-        # If the command is not in SEARCH_ITEMS and not a special command and not an alias, ignore it silently
+        SPECIAL_COMMANDS = {"start", "search", "addarti", "allcommands", "bossimg", "addcard", "addguide", "delcard", "delguide"}
+
         should_ignore = command not in SEARCH_ITEMS and command not in SPECIAL_COMMANDS and command not in ALIASES
         logging.info(f"Command '{command}' - should_ignore={should_ignore}")
-        
+
         if should_ignore:
             logging.info(f"Ignoring command: {command}")
             return
 
         try:
-            username = (
-                f"@{user.username}"
-                if user.username else
-                "None"
-            )
-
+            username = f"@{user.username}" if user.username else "None"
             await send_log(
                 message.bot,
                 f"Command Used\n\n"
@@ -51,12 +57,11 @@ async def handle_message(message: types.Message):
             )
         except Exception as e:
             logging.exception("Error in send_log: %s", e)
-        
+
         if command == "start":
             bot_username = BOT_USERNAME
             if bot_username:
                 bot_username = bot_username.lstrip("@")
-
             if not bot_username:
                 try:
                     me = await message.bot.get_me()
@@ -71,14 +76,9 @@ async def handle_message(message: types.Message):
             button = None
             if group_link:
                 button = types.InlineKeyboardMarkup(
-                    inline_keyboard=[
-                        [
-                            types.InlineKeyboardButton(
-                                text="Add me to your group",
-                                url=group_link,
-                            )
-                        ]
-                    ]
+                    inline_keyboard=[[
+                        types.InlineKeyboardButton(text="Add me to your group", url=group_link)
+                    ]]
                 )
 
             inline_hint = ""
@@ -101,18 +101,32 @@ async def handle_message(message: types.Message):
             await handle_bossimg_command(message)
             return
 
+        if command == "addcard":
+            await handle_addcard_command(message)
+            return
+
+        if command == "addguide":
+            await handle_addguide_command(message)
+            return
+
+        if command == "delcard":
+            await handle_delcard_command(message)
+            return
+
+        if command == "delguide":
+            await handle_delguide_command(message)
+            return
+
         if command == "allcommands":
             try:
                 lines = [f"/{k} - {v}" for k, v in sorted(SEARCH_ITEMS.items(), key=lambda t: t[0])]
                 text = "Available commands:\n" + "\n".join(lines)
-
                 MAX = 4000
                 for i in range(0, len(text), MAX):
-                    await message.reply(text[i:i+MAX])
+                    await message.reply(text[i:i + MAX])
             except Exception:
                 logging.exception("Failed to build allcommands list")
                 await message.reply("Failed to retrieve commands list.")
-
             return
 
         if command == "search":
@@ -123,9 +137,7 @@ async def handle_message(message: types.Message):
 
             matches = find_search_matches(query)
             if not matches:
-                await message.reply(
-                    "No search results found. Try another keyword or /allcommands."
-                )
+                await message.reply("No search results found. Try another keyword or /allcommands.")
                 return
 
             if len(matches) == 1:
@@ -133,16 +145,14 @@ async def handle_message(message: types.Message):
                 return
 
             keyboard = render_search_keyboard(matches, message.from_user.id)
-            await message.reply(
-                f"Search results for \"{query}\":",
-                reply_markup=keyboard,
-            )
+            await message.reply(f'Search results for "{query}":', reply_markup=keyboard)
             return
 
+        # --- Artifact check ---
         artifact_info = find_artifact_info(command)
         artifact_files = find_artifact_files(command)
 
-        # Check if this is a boss command
+        # --- Boss check ---
         boss_display = SEARCH_ITEMS.get(command)
         boss = find_boss(boss_display) if boss_display else None
         if boss and boss.get("file_id"):
@@ -182,30 +192,9 @@ async def handle_message(message: types.Message):
                 await message.reply(artifact_caption, parse_mode="HTML")
             return
 
+        # --- Character cards + guides ---
         character = ALIASES.get(command, command)
-        files = find_character_files(character)
-
-        if not files:
-            await message.reply(f"No files found for {character.title()}.")
-            return
-
-        CHUNK_SIZE = 50
-        caption = (
-            "Artifacts moved to inline mode.\n"
-            "Use @collei_help_bot + name to search."
-        )
-        for i in range(0, len(files), CHUNK_SIZE):
-            chunk = files[i:i + CHUNK_SIZE]
-            chunk_caption = caption if i == 0 else None
-
-            try:
-                await send_rich_slideshow(
-                    message,
-                    chunk,
-                    caption=chunk_caption,
-                )
-            except Exception:
-                logging.exception("Rich slideshow failed")
+        await _send_character_results(message, character)
 
 
 @router.callback_query(lambda c: c.data and c.data.startswith("search|"))

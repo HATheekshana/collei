@@ -11,22 +11,19 @@ from utils.helper import send_log
 _GITHUB_RAW_BASE = "https://raw.githubusercontent.com/HATheekshana/collei/main"
 
 _file_id_cache = {}
+
+
 async def send_artifact_preview(
     message: types.Message,
     image_name: str,
     caption: str | None = None
 ):
     repo_raw_url = "https://raw.githubusercontent.com/HATheekshana/collei/main/artifacts"
-
     full_image_url = f"{repo_raw_url}/{image_name}"
-
     hidden_link = f'<a href="{full_image_url}">&#8203;</a>'
-
     text = hidden_link
-
     if caption:
         text += caption
-
     await message.reply(text, parse_mode="HTML")
 
 
@@ -77,13 +74,122 @@ async def _raw_api_request(bot: Bot, method: str, payload: dict) -> dict:
     return data["result"]
 
 
+# ---------------------------------------------------------------------------
+# Rich slideshow from already-uploaded Telegram file_ids
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Rich slideshow from resolved media (imgBB URL preferred, Telegram file_id
+# fallback) — each item is {"image_url": ...} or {"file_id": ...}
+# ---------------------------------------------------------------------------
+
+async def send_media_slideshow(
+    message: types.Message,
+    media_items: list[dict],
+    caption: str | None = None,
+) -> bool:
+    """
+    Send character cards/guides as a rich tg-slideshow when every item has a
+    public imgBB URL. If any item only has a Telegram file_id (imgBB upload
+    failed for it), fall back to a native Telegram media group instead,
+    since file_ids cannot be embedded in rich message HTML.
+    """
+    if not media_items:
+        return False
+
+    urls = [m["image_url"] for m in media_items if m.get("image_url")]
+    has_file_id_only = any("image_url" not in m and m.get("file_id") for m in media_items)
+
+    # Only attempt the rich slideshow if every item resolved to a public URL.
+    if urls and not has_file_id_only and len(urls) == len(media_items):
+        blocks = [f'<img src="{u}"/>' for u in urls]
+        slideshow = "<tg-slideshow>" + "".join(blocks)
+        if caption:
+            slideshow += f"<figcaption>{html.escape(caption)}</figcaption>"
+        slideshow += "</tg-slideshow>"
+
+        payload: dict = {
+            "chat_id": message.chat.id,
+            "rich_message": {"html": slideshow},
+        }
+        if message.message_thread_id:
+            payload["message_thread_id"] = message.message_thread_id
+        payload["reply_parameters"] = {"message_id": message.message_id}
+
+        try:
+            await _raw_api_request(message.bot, "sendRichMessage", payload)
+            return True
+        except RuntimeError as e:
+            err = str(e)
+            if "message to be replied not found" in err:
+                payload.pop("reply_parameters", None)
+                try:
+                    await _raw_api_request(message.bot, "sendRichMessage", payload)
+                    return True
+                except RuntimeError as e2:
+                    err = str(e2)
+            logging.warning("Rich slideshow (imgBB URLs) failed (%s), falling back to media group", err)
+
+    # Fallback: native Telegram media group, mixing URLs and file_ids freely
+    # (Telegram's InputMediaPhoto accepts either a URL string or a file_id).
+    await _send_mixed_media_group(message, media_items, caption=caption)
+    return True
+
+
+async def _send_mixed_media_group(
+    message: types.Message,
+    media_items: list[dict],
+    caption: str | None = None,
+):
+    """answer_media_group fallback accepting imgBB URLs or Telegram file_ids."""
+    sources = [m.get("image_url") or m.get("file_id") for m in media_items]
+    sources = [s for s in sources if s]
+
+    CHUNK = 10
+    for i in range(0, len(sources), CHUNK):
+        chunk = sources[i:i + CHUNK]
+        media = []
+        for idx, src in enumerate(chunk):
+            if idx == 0 and i == 0 and caption:
+                media.append(types.InputMediaPhoto(media=src, caption=caption, parse_mode="HTML"))
+            else:
+                media.append(types.InputMediaPhoto(media=src))
+        try:
+            try:
+                await message.answer_media_group(
+                    media,
+                    reply_parameters=types.ReplyParameters(message_id=message.message_id),
+                )
+            except TelegramBadRequest as e:
+                if "message to be replied not found" in str(e):
+                    await message.answer_media_group(media)
+                else:
+                    raise
+        except Exception:
+            logging.exception("Mixed media group fallback failed for chunk starting at %d", i)
+
+
+# Backwards-compat shim: older call sites may still pass a flat list of
+# file_ids. Wrap them as {"file_id": ...} dicts and delegate.
+async def send_rich_slideshow_from_file_ids(
+    message: types.Message,
+    file_ids: list[str],
+    caption: str | None = None,
+) -> bool:
+    media_items = [{"file_id": fid} for fid in file_ids]
+    return await send_media_slideshow(message, media_items, caption=caption)
+
+
+# ---------------------------------------------------------------------------
+# Rich slideshow from local file paths (used for artifacts still on disk)
+# ---------------------------------------------------------------------------
+
 async def send_rich_slideshow(
     message: types.Message,
     files: list[str],
     caption: str | None = None,
 ) -> bool:
     blocks = []
-
     for path in files:
         if not os.path.isfile(path):
             continue
@@ -101,14 +207,10 @@ async def send_rich_slideshow(
 
     payload = {
         "chat_id": message.chat.id,
-        "rich_message": {
-            "html": slideshow,
-        },
+        "rich_message": {"html": slideshow},
     }
-
     if message.message_thread_id:
         payload["message_thread_id"] = message.message_thread_id
-
     payload["reply_parameters"] = {"message_id": message.message_id}
 
     try:
@@ -117,7 +219,6 @@ async def send_rich_slideshow(
     except RuntimeError as e:
         err = str(e)
         if "message to be replied not found" in err:
-            # Original message was deleted — retry without reply_parameters
             logging.warning("Reply message gone, retrying rich slideshow without reply ref")
             payload.pop("reply_parameters", None)
             try:
@@ -125,17 +226,16 @@ async def send_rich_slideshow(
                 return True
             except RuntimeError as e2:
                 err = str(e2)
-                # fall through to media group fallback below if still failing
-                if "RICH_MESSAGE_PHOTO_NO_MEDIA_FOUND" not in err and "Bad Request" not in err:
-                    raise
         if "RICH_MESSAGE_PHOTO_NO_MEDIA_FOUND" in err or "Bad Request" in err:
-            # Local files (cards/, guides/) aren't on GitHub so Telegram can't fetch them.
-            # Upload directly instead.
             logging.warning("Rich slideshow failed (%s), falling back to media group upload", err)
             await send_cached_media_group(message, files, caption=caption)
             return True
         raise
 
+
+# ---------------------------------------------------------------------------
+# send_cached_media_group — local file upload with in-memory file_id cache
+# ---------------------------------------------------------------------------
 
 async def send_cached_media_group(
     message: types.Message,
@@ -148,39 +248,17 @@ async def send_cached_media_group(
     first_added = False
 
     for path in files:
-
         if not os.path.isfile(path):
             continue
-
         ext = os.path.splitext(path)[1].lower()
-
-        is_image = ext in (
-            ".jpg",
-            ".jpeg",
-            ".png",
-            ".webp",
-            ".gif"
-        )
+        is_image = ext in (".jpg", ".jpeg", ".png", ".webp", ".gif")
 
         try:
-            # -------------------------
-            # SOURCE (cached or local)
-            # -------------------------
-            if path in _file_id_cache:
-                media_source = _file_id_cache[path]
-            else:
-                media_source = types.FSInputFile(path)
+            media_source = _file_id_cache[path] if path in _file_id_cache else types.FSInputFile(path)
 
-            # -------------------------
-            # BUILD MEDIA ITEM
-            # -------------------------
             if is_image:
                 if caption and not first_added:
-                    item = types.InputMediaPhoto(
-                        media=media_source,
-                        caption=caption,
-                        parse_mode="HTML"
-                    )
+                    item = types.InputMediaPhoto(media=media_source, caption=caption, parse_mode="HTML")
                     first_added = True
                 else:
                     item = types.InputMediaPhoto(media=media_source)
@@ -188,7 +266,6 @@ async def send_cached_media_group(
                 item = types.InputMediaDocument(media=media_source)
 
             media.append(item)
-
         except Exception:
             logging.exception("Failed preparing media %s", path)
 
@@ -199,9 +276,7 @@ async def send_cached_media_group(
         try:
             sent_messages = await message.answer_media_group(
                 media,
-                reply_parameters=types.ReplyParameters(
-                    message_id=message.message_id
-                )
+                reply_parameters=types.ReplyParameters(message_id=message.message_id)
             )
         except TelegramBadRequest as e:
             if "message to be replied not found" in str(e):
@@ -210,18 +285,12 @@ async def send_cached_media_group(
             else:
                 raise
 
-        # -------------------------
-        # CACHE FILE IDS
-        # -------------------------
         for path, sent in zip(files, sent_messages):
-
             try:
                 if sent.photo:
                     _file_id_cache[path] = sent.photo[-1].file_id
-
                 elif sent.document:
                     _file_id_cache[path] = sent.document.file_id
-
             except Exception:
                 pass
 
@@ -229,20 +298,15 @@ async def send_cached_media_group(
         error_text = traceback.format_exc()
         logging.exception("Media group failed")
 
-        # -------------------------
-        # FALLBACK
-        # -------------------------
         for path in files:
             try:
                 if not os.path.isfile(path):
                     continue
-
                 ext = os.path.splitext(path)[1].lower()
                 is_image = ext in (".jpg", ".jpeg", ".png", ".webp", ".gif")
 
                 if path in _file_id_cache:
                     fid = _file_id_cache[path]
-
                     if is_image:
                         try:
                             sent = await message.reply_photo(fid)
@@ -257,7 +321,6 @@ async def send_cached_media_group(
                             sent = await message.answer_document(fid)
                         if sent.document:
                             _file_id_cache[path] = sent.document.file_id
-
                 else:
                     if is_image:
                         try:
@@ -279,7 +342,6 @@ async def send_cached_media_group(
             except TelegramNetworkError:
                 logging.exception("Network error while sending %s", path)
                 await asyncio.sleep(1)
-
             except Exception:
                 logging.exception("Failed sending fallback media %s", path)
 
