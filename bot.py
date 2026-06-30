@@ -3,8 +3,6 @@ import logging
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
-from aiogram.client.session.aiohttp import AiohttpSession
-from aiogram.client.telegram import TelegramAPIServer
 
 from data.config import TOKEN
 from utils.helper import send_log, build_character_cache
@@ -22,15 +20,8 @@ async def main():
         logging.error("BOT_TOKEN not set")
         return
 
-    api = TelegramAPIServer.from_base(
-        "http://telegram-bot-api:8081"
-    )
-
-    session = AiohttpSession(api=api)
-
     bot = Bot(
         token=TOKEN,
-        session=session,
         default=DefaultBotProperties()
     )
 

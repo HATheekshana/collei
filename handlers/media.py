@@ -4,7 +4,7 @@ import logging
 import traceback
 import asyncio
 from urllib.parse import quote
-from aiogram.exceptions import TelegramNetworkError
+from aiogram.exceptions import TelegramNetworkError, TelegramBadRequest
 from aiogram import Bot, types
 from utils.helper import send_log
 
@@ -111,8 +111,30 @@ async def send_rich_slideshow(
 
     payload["reply_parameters"] = {"message_id": message.message_id}
 
-    await _raw_api_request(message.bot, "sendRichMessage", payload)
-    return True
+    try:
+        await _raw_api_request(message.bot, "sendRichMessage", payload)
+        return True
+    except RuntimeError as e:
+        err = str(e)
+        if "message to be replied not found" in err:
+            # Original message was deleted — retry without reply_parameters
+            logging.warning("Reply message gone, retrying rich slideshow without reply ref")
+            payload.pop("reply_parameters", None)
+            try:
+                await _raw_api_request(message.bot, "sendRichMessage", payload)
+                return True
+            except RuntimeError as e2:
+                err = str(e2)
+                # fall through to media group fallback below if still failing
+                if "RICH_MESSAGE_PHOTO_NO_MEDIA_FOUND" not in err and "Bad Request" not in err:
+                    raise
+        if "RICH_MESSAGE_PHOTO_NO_MEDIA_FOUND" in err or "Bad Request" in err:
+            # Local files (cards/, guides/) aren't on GitHub so Telegram can't fetch them.
+            # Upload directly instead.
+            logging.warning("Rich slideshow failed (%s), falling back to media group upload", err)
+            await send_cached_media_group(message, files, caption=caption)
+            return True
+        raise
 
 
 async def send_cached_media_group(
@@ -174,12 +196,19 @@ async def send_cached_media_group(
         return
 
     try:
-        sent_messages = await message.answer_media_group(
-            media,
-            reply_parameters=types.ReplyParameters(
-                message_id=message.message_id
+        try:
+            sent_messages = await message.answer_media_group(
+                media,
+                reply_parameters=types.ReplyParameters(
+                    message_id=message.message_id
+                )
             )
-        )
+        except TelegramBadRequest as e:
+            if "message to be replied not found" in str(e):
+                logging.warning("Reply message gone, sending media group without reply ref")
+                sent_messages = await message.answer_media_group(media)
+            else:
+                raise
 
         # -------------------------
         # CACHE FILE IDS
@@ -215,21 +244,33 @@ async def send_cached_media_group(
                     fid = _file_id_cache[path]
 
                     if is_image:
-                        sent = await message.reply_photo(fid)
+                        try:
+                            sent = await message.reply_photo(fid)
+                        except TelegramBadRequest:
+                            sent = await message.answer_photo(fid)
                         if sent.photo:
                             _file_id_cache[path] = sent.photo[-1].file_id
                     else:
-                        sent = await message.reply_document(fid)
+                        try:
+                            sent = await message.reply_document(fid)
+                        except TelegramBadRequest:
+                            sent = await message.answer_document(fid)
                         if sent.document:
                             _file_id_cache[path] = sent.document.file_id
 
                 else:
                     if is_image:
-                        sent = await message.reply_photo(types.FSInputFile(path))
+                        try:
+                            sent = await message.reply_photo(types.FSInputFile(path))
+                        except TelegramBadRequest:
+                            sent = await message.answer_photo(types.FSInputFile(path))
                         if sent.photo:
                             _file_id_cache[path] = sent.photo[-1].file_id
                     else:
-                        sent = await message.reply_document(types.FSInputFile(path))
+                        try:
+                            sent = await message.reply_document(types.FSInputFile(path))
+                        except TelegramBadRequest:
+                            sent = await message.answer_document(types.FSInputFile(path))
                         if sent.document:
                             _file_id_cache[path] = sent.document.file_id
 

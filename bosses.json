@@ -1,0 +1,297 @@
+[
+  {
+    "name": "Aeonblight Drake",
+    "file_id": "AgACAgUAAx0CVvl8jQACBCFqQMwZwMdJgxbYOY8N94TTRYzCnwACjw5rGyrzCFbhzRBJarxijwEAAwIAA3kAAzwE",
+    "filename": "boss_aeonblight_drake_24030301.png"
+  },
+  {
+    "name": "Algorithm of Semi-Intransient Matrix of Overseer Network",
+    "file_id": "AgACAgUAAx0CVvl8jQACBCJqQMwZQWBs0aIs_uu9QhKAgAFaTQACkA5rGyrzCFZA_LYX59MvOQEAAwIAA3kAAzwE",
+    "filename": "boss_algorithm_of_semi_intransient_matrix_of_overseer_network_24050101.png"
+  },
+  {
+    "name": "All-Devouring Narwhal",
+    "file_id": null,
+    "filename": "boss_all_devouring_narwhal_29090101.png"
+  },
+  {
+    "name": "Anemo Hypostasis",
+    "file_id": "AgACAgUAAx0CVvl8jQACBCNqQMwZHI5AXcCq54uUl-WJ6IlmQAACkQ5rGyrzCFZ-6ULoyQc8mgEAAwIAA3kAAzwE",
+    "filename": "boss_anemo_hypostasis_20040201.png"
+  },
+  {
+    "name": "Azhdaha",
+    "file_id": "AgACAgUAAx0CVvl8jQACBCRqQMwZkZAaFJrsy60Oe4K1HZx9DAACkg5rGyrzCFam_N7Q88c8iQEAAwIAA3kAAzwE",
+    "filename": "boss_azhdaha_29040101.png"
+  },
+  {
+    "name": "Bolteater Bathysmal Vishap",
+    "file_id": "AgACAgUAAx0CVvl8jQACBCVqQMwZ8oL_QEQHq_nu9zq40_2BIQACkw5rGyrzCFb2E9zGvHHUYgEAAwIAA3kAAzwE",
+    "filename": "boss_bolteater_bathysmal_vishap_26050801.png"
+  },
+  {
+    "name": "Childe",
+    "file_id": "AgACAgUAAx0CVvl8jQACBCZqQMwZ1bCkjHQIl4reavpvkv1Q4AAClA5rGyrzCFbzHpnQGroMXAEAAwIAA3kAAzwE",
+    "filename": "boss_childe_29030101.png"
+  },
+  {
+    "name": "Cryo Hypostasis",
+    "file_id": "AgACAgUAAx0CVvl8jQACBBRqQMt1hXu6TGtqzVrJY44M6clWGgACjg5rGyrzCFaVu5nu16YZIwEAAwIAA3kAAzwE",
+    "filename": "boss_cryo_hypostasis_20040501.png"
+  },
+  {
+    "name": "Cryo Regisvine",
+    "file_id": null,
+    "filename": "boss_cryo_regisvine_26020101.png"
+  },
+  {
+    "name": "Dendro Hypostasis",
+    "file_id": "AgACAgUAAx0CVvl8jQACBChqQMwZuYZUMtnwrwgmDwTPz_iSLQAClg5rGyrzCFZnnvz12NbT8AEAAwIAA3kAAzwE",
+    "filename": "boss_dendro_hypostasis_20040701.png"
+  },
+  {
+    "name": "Electro Hypostasis",
+    "file_id": null,
+    "filename": "boss_electro_hypostasis_20040101.png"
+  },
+  {
+    "name": "Electro Regisvine",
+    "file_id": null,
+    "filename": "boss_electro_regisvine_26020301.png"
+  },
+  {
+    "name": "Emperor of Fire and Iron",
+    "file_id": null,
+    "filename": "boss_emperor_of_fire_and_iron_26160302.png"
+  },
+  {
+    "name": "Experimental Field Generator",
+    "file_id": null,
+    "filename": "boss_experimental_field_generator_24080101.png"
+  },
+  {
+    "name": "Frostnight Herra",
+    "file_id": null,
+    "filename": "boss_frostnight_herra_20081001.png"
+  },
+  {
+    "name": "Geo Hypostasis",
+    "file_id": null,
+    "filename": "boss_geo_hypostasis_20040301.png"
+  },
+  {
+    "name": "Gluttonous Yumkasaur Mountain King",
+    "file_id": null,
+    "filename": "boss_gluttonous_yumkasaur_mountain_king_26220301.png"
+  },
+  {
+    "name": "Golden Wolflord",
+    "file_id": null,
+    "filename": "boss_golden_wolflord_22060101.png"
+  },
+  {
+    "name": "Goldflame Qucusaur Tyrant",
+    "file_id": null,
+    "filename": "boss_goldflame_qucusaur_tyrant_26230301.png"
+  },
+  {
+    "name": "Guardian of Apep's Oasis",
+    "file_id": null,
+    "filename": "boss_guardian_of_apep_s_oasis_29080101.png"
+  },
+  {
+    "name": "Hydro Hypostasis",
+    "file_id": null,
+    "filename": "boss_hydro_hypostasis_20040401.png"
+  },
+  {
+    "name": "Hydro Tulpa",
+    "file_id": null,
+    "filename": "boss_hydro_tulpa_20051201.png"
+  },
+  {
+    "name": "Icewind Suite",
+    "file_id": null,
+    "filename": "boss_icewind_suite_24070301.png"
+  },
+  {
+    "name": "Il Dottore",
+    "file_id": null,
+    "filename": "boss_il_dottore_29150101.png"
+  },
+  {
+    "name": "Iniquitous Baptist",
+    "file_id": null,
+    "filename": "boss_iniquitous_baptist_22100501.png"
+  },
+  {
+    "name": "Jadeplume Terrorshroom",
+    "file_id": null,
+    "filename": "boss_jadeplume_terrorshroom_26110101.png"
+  },
+  {
+    "name": "Knuckle Duckle",
+    "file_id": null,
+    "filename": "boss_knuckle_duckle_24100101.png"
+  },
+  {
+    "name": "La Signora",
+    "file_id": null,
+    "filename": "boss_la_signora_29050101.png"
+  },
+  {
+    "name": "Lava Dragon Statue",
+    "file_id": null,
+    "filename": "boss_lava_dragon_statue_26270301.png"
+  },
+  {
+    "name": "Legatus Golem",
+    "file_id": null,
+    "filename": "boss_legatus_golem_26140101.png"
+  },
+  {
+    "name": "Lord of Eroded Primal Fire",
+    "file_id": null,
+    "filename": "boss_lord_of_eroded_primal_fire_29091101.png"
+  },
+  {
+    "name": "Lord of the Hidden Depths, Whisperer of Nightmares",
+    "file_id": null,
+    "filename": "boss_lord_of_the_hidden_depths_whisperer_of_nightmares_22150101.png"
+  },
+  {
+    "name": "Lupus Boreas, Dominator of Wolves",
+    "file_id": null,
+    "filename": "boss_lupus_boreas_dominator_of_wolves_29020101.png"
+  },
+  {
+    "name": "Magatsu Mitake Narukami no Mikoto",
+    "file_id": "AgACAgUAAx0CVvl8jQACBDBqQMwachHnVJGnFNJ0Kx263i4NqAACng5rGyrzCFYJNUf61-iixgEAAwIAA3kAAzwE",
+    "filename": "boss_magatsu_mitake_narukami_no_mikoto_29060201.png"
+  },
+  {
+    "name": "Maguu Kenki",
+    "file_id": null,
+    "filename": "boss_maguu_kenki_25090101.png"
+  },
+  {
+    "name": "Millennial Pearl Seahorse",
+    "file_id": null,
+    "filename": "boss_millennial_pearl_seahorse_26180101.png"
+  },
+  {
+    "name": "Oceanid",
+    "file_id": "AgACAgUAAx0CVvl8jQACBDJqQMwaXvSGfcUL8mg5cniAFmndRwACoA5rGyrzCFbdiHR2Y9gXhwEAAwIAA3kAAzwE",
+    "filename": "boss_oceanid_20050101.png"
+  },
+  {
+    "name": "Perpetual Mechanical Array",
+    "file_id": null,
+    "filename": "boss_perpetual_mechanical_array_24021101.png"
+  },
+  {
+    "name": "Primo Geovishap",
+    "file_id": null,
+    "filename": "boss_primo_geovishap_26050101.png"
+  },
+  {
+    "name": "Pyro Hypostasis",
+    "file_id": null,
+    "filename": "boss_pyro_hypostasis_20040601.png"
+  },
+  {
+    "name": "Pyro Regisvine",
+    "file_id": null,
+    "filename": "boss_pyro_regisvine_26020201.png"
+  },
+  {
+    "name": "Radiant Moonfly",
+    "file_id": null,
+    "filename": "boss_radiant_moonfly_26301101.png"
+  },
+  {
+    "name": "Radiant Moongecko",
+    "file_id": null,
+    "filename": "boss_radiant_moongecko_26302101.png"
+  },
+  {
+    "name": "Rimebiter Bathysmal Vishap",
+    "file_id": null,
+    "filename": "boss_rimebiter_bathysmal_vishap_26050701.png"
+  },
+  {
+    "name": "Ruin Serpent",
+    "file_id": null,
+    "filename": "boss_ruin_serpent_24010401.png"
+  },
+  {
+    "name": "Secret Source Automaton: Configuration Device",
+    "file_id": null,
+    "filename": "boss_secret_source_automaton_configuration_device_24090201.png"
+  },
+  {
+    "name": "Secret Source Automaton: Overseer Device",
+    "file_id": null,
+    "filename": "boss_secret_source_automaton_overseer_device_24090501.png"
+  },
+  {
+    "name": "Setekh Wenut",
+    "file_id": null,
+    "filename": "boss_setekh_wenut_26130101.png"
+  },
+  {
+    "name": "Shouki no Kami, the Prodigal",
+    "file_id": null,
+    "filename": "boss_shouki_no_kami_the_prodigal_29070101.png"
+  },
+  {
+    "name": "Solitary Suanni",
+    "file_id": null,
+    "filename": "boss_solitary_suanni_26190101.png"
+  },
+  {
+    "name": "Stormterror Dvalin",
+    "file_id": null,
+    "filename": "boss_stormterror_29010101.png"
+  },
+  {
+    "name": "Super Heavy Landrover Mechanized Fortress",
+    "file_id": null,
+    "filename": "boss_super_heavy_landrover_mechanized_fortress_23090101.png"
+  },
+  {
+    "name": "Tenebrous Papilla",
+    "file_id": null,
+    "filename": "boss_tenebrous_papilla_type_i_22120101.png"
+  },
+  {
+    "name": "The Doctor",
+    "file_id": null,
+    "filename": "boss_the_doctor_29130201.png"
+  },
+  {
+    "name": "The Game Before the Gate",
+    "file_id": null,
+    "filename": "boss_the_game_before_the_gate_29122000.png"
+  },
+  {
+    "name": "The Knave",
+    "file_id": null,
+    "filename": "boss_the_knave_29091001.png"
+  },
+  {
+    "name": "Thunder Manifestation",
+    "file_id": null,
+    "filename": "boss_thunder_manifestation_20070101.png"
+  },
+  {
+    "name": "Watcher: Fallen Vigil",
+    "file_id": null,
+    "filename": "boss_watcher_fallen_vigil_24111101.png"
+  },
+  {
+    "name": "Wayward Hermetic Spiritspeaker",
+    "file_id": null,
+    "filename": "boss_wayward_hermetic_spiritspeaker_25520101.png"
+  }
+]

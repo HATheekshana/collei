@@ -1,8 +1,10 @@
 import logging
 import os
-from aiogram import Router, types
+from aiogram import Router, types, F
 from utils.helper import send_log
 from handlers.admin import handle_add_artifact_command
+from handlers.boss_admin import handle_bossimg_command
+from utils.bosses import find_boss
 from utils.artifacts import find_artifact_info
 from utils.helper import find_character_files, find_artifact_files
 from handlers.media import send_rich_slideshow
@@ -11,7 +13,8 @@ from data.aliases import ALIASES
 from data.search_items import SEARCH_ITEMS
 from data.config import BOT_USERNAME
 router = Router()
-@router.message()
+
+@router.message(F.text.startswith("/"))
 async def handle_message(message: types.Message):
     logging.info(f"Message received: {message.text}")
     # Handle commands
@@ -21,7 +24,7 @@ async def handle_message(message: types.Message):
         user = message.from_user
 
         # Special commands that are always allowed
-        SPECIAL_COMMANDS = {"start", "search", "addarti", "allcommands"}
+        SPECIAL_COMMANDS = {"start", "search", "addarti", "allcommands", "bossimg"}
         
         # If the command is not in SEARCH_ITEMS and not a special command and not an alias, ignore it silently
         should_ignore = command not in SEARCH_ITEMS and command not in SPECIAL_COMMANDS and command not in ALIASES
@@ -93,13 +96,16 @@ async def handle_message(message: types.Message):
         if command == "addarti":
             await handle_add_artifact_command(message)
             return
+
+        if command == "bossimg":
+            await handle_bossimg_command(message)
+            return
+
         if command == "allcommands":
-            # Show a generated list of available commands to the user.
             try:
                 lines = [f"/{k} - {v}" for k, v in sorted(SEARCH_ITEMS.items(), key=lambda t: t[0])]
                 text = "Available commands:\n" + "\n".join(lines)
 
-                # Telegram limits message size; split if necessary
                 MAX = 4000
                 for i in range(0, len(text), MAX):
                     await message.reply(text[i:i+MAX])
@@ -136,6 +142,20 @@ async def handle_message(message: types.Message):
         artifact_info = find_artifact_info(command)
         artifact_files = find_artifact_files(command)
 
+        # Check if this is a boss command
+        boss_display = SEARCH_ITEMS.get(command)
+        boss = find_boss(boss_display) if boss_display else None
+        if boss and boss.get("file_id"):
+            try:
+                await message.reply_photo(
+                    photo=boss["file_id"],
+                    caption=f"<b>Boss:</b> {boss['name']}",
+                    parse_mode="HTML",
+                )
+            except Exception:
+                logging.exception("Failed to send boss photo")
+            return
+
         if artifact_info or artifact_files:
             artifact_caption = None
             if artifact_info:
@@ -169,12 +189,11 @@ async def handle_message(message: types.Message):
             await message.reply(f"No files found for {character.title()}.")
             return
 
-        # Send rich slideshow with character files.
         CHUNK_SIZE = 50
         caption = (
-                "Artifacts moved to inline mode.\n"
-                "Use @collei_help_bot + name to search."
-            )
+            "Artifacts moved to inline mode.\n"
+            "Use @collei_help_bot + name to search."
+        )
         for i in range(0, len(files), CHUNK_SIZE):
             chunk = files[i:i + CHUNK_SIZE]
             chunk_caption = caption if i == 0 else None

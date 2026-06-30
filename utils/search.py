@@ -118,7 +118,22 @@ def render_search_keyboard(keys: list[str], user_id: int) -> InlineKeyboardMarku
 
 async def send_search_result(message: types.Message, key: str):
     from handlers.media import send_rich_slideshow
-    
+    from utils.bosses import find_boss
+
+    # --- Boss check first ---
+    display_name = SEARCH_ITEMS.get(key, key.title())
+    boss = find_boss(display_name)
+    if boss and boss.get("file_id"):
+        try:
+            await message.reply_photo(
+                photo=boss["file_id"],
+                caption=f"<b>Boss:</b> {boss['name']}",
+                parse_mode="HTML",
+            )
+        except Exception:
+            pass
+        return
+
     artifact_info = find_artifact_info(key)
     artifact_files = find_artifact_files(key)
     character_files = find_character_files(key)

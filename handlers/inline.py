@@ -12,6 +12,7 @@ from aiogram import Router
 from utils.helper import normalize_name, find_character_files, find_artifact_files
 from data.search_items import SEARCH_ITEMS
 from utils.artifacts import find_artifact_info
+from utils.bosses import find_boss
 
 router = Router()
 
@@ -50,6 +51,39 @@ async def inline_search(inline_query: InlineQuery):
             artifact_info = find_artifact_info(key)
             artifact_files = find_artifact_files(key)
             character_files = find_character_files(key)
+
+            # --- Boss inline result ---
+            boss = find_boss(display_name)
+            if boss and boss.get("file_id"):
+                from aiogram.types import InlineQueryResultPhoto
+                results.append(
+                    InlineQueryResultPhoto(
+                        id=f"boss-{key}",
+                        photo_url=f"https://api.telegram.org/file/bot{{token}}/placeholder",  # unused, file_id used via cached_photo
+                        thumbnail_url="https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/No_image_available.svg/240px-No_image_available.svg.png",
+                        title=display_name,
+                        description="Boss",
+                        caption=f"<b>Boss:</b> {boss['name']}",
+                        parse_mode="HTML",
+                        # Use CachedPhoto to send by file_id
+                    )
+                )
+                # Replace with cached photo result
+                results.pop()
+                from aiogram.types import InlineQueryResultCachedPhoto
+                results.append(
+                    InlineQueryResultCachedPhoto(
+                        id=f"boss-{key}",
+                        photo_file_id=boss["file_id"],
+                        title=display_name,
+                        description="Boss",
+                        caption=f"<b>Boss:</b> {boss['name']}",
+                        parse_mode="HTML",
+                    )
+                )
+                if len(results) >= 50:
+                    break
+                continue
 
             # collect image URLs for this entry
             def collect_images() -> list:

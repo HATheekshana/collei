@@ -1,107 +1,258 @@
-import requests
-import json
-import time
+import os
+import html
+import logging
+import traceback
+import asyncio
+from urllib.parse import quote
+from aiogram.exceptions import TelegramNetworkError
+from aiogram import Bot, types
+from utils.helper import send_log
 
-API = "https://genshin-impact.fandom.com/api.php"
+_GITHUB_RAW_BASE = "https://raw.githubusercontent.com/HATheekshana/collei/main"
 
-# ----------------------------
-# 1. Get all weekly bosses
-# ----------------------------
-def get_boss_list():
-    params = {
-        "action": "query",
-        "list": "categorymembers",
-        "cmtitle": "Category:Weekly_Bosses",
-        "cmlimit": 500,
-        "format": "json"
+_file_id_cache = {}
+async def send_artifact_preview(
+    message: types.Message,
+    image_name: str,
+    caption: str | None = None
+):
+    repo_raw_url = "https://raw.githubusercontent.com/HATheekshana/collei/main/artifacts"
+
+    full_image_url = f"{repo_raw_url}/{image_name}"
+
+    hidden_link = f'<a href="{full_image_url}">&#8203;</a>'
+
+    text = hidden_link
+
+    if caption:
+        text += caption
+
+    await message.reply(text, parse_mode="HTML")
+
+
+def _github_raw_url(path: str) -> str:
+    rel = path.replace("\\", "/").lstrip("./")
+    if os.path.isabs(rel):
+        root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        rel = os.path.relpath(path, root).replace("\\", "/")
+    return f"{_GITHUB_RAW_BASE}/{quote(rel, safe='/:')}"
+
+
+def _supported_rich_media(path: str) -> bool:
+    ext = os.path.splitext(path)[1].lower()
+    return ext in (".jpg", ".jpeg", ".png", ".webp", ".gif", ".mp4", ".webm")
+
+
+def _rich_media_tag(path: str) -> str:
+    ext = os.path.splitext(path)[1].lower()
+    url = _github_raw_url(path)
+    if ext in (".jpg", ".jpeg", ".png", ".webp", ".gif"):
+        return f'<img src="{url}"/>'
+    return f'<video src="{url}"/>'
+
+
+async def _raw_api_request(bot: Bot, method: str, payload: dict) -> dict:
+    session = getattr(bot, "session", None)
+    if session is None:
+        raise RuntimeError("Bot session not available for raw API request")
+
+    client = await session.create_session()
+    url = session.api.api_url(token=bot.token, method=method)
+
+    async with client.post(url, json=payload, timeout=session.timeout) as resp:
+        text = await resp.text()
+
+    try:
+        data = session.json_loads(text)
+    except Exception as error:
+        raise RuntimeError(
+            f"Failed to decode {method} response: {error}\n{text}"
+        ) from error
+
+    if not data.get("ok", False):
+        raise RuntimeError(
+            f"{method} failed: {data.get('description', text)}"
+        )
+
+    return data["result"]
+
+
+async def send_rich_slideshow(
+    message: types.Message,
+    files: list[str],
+    caption: str | None = None,
+) -> bool:
+    blocks = []
+
+    for path in files:
+        if not os.path.isfile(path):
+            continue
+        if not _supported_rich_media(path):
+            continue
+        blocks.append(_rich_media_tag(path))
+
+    if not blocks:
+        return False
+
+    slideshow = "<tg-slideshow>" + "".join(blocks)
+    if caption:
+        slideshow += f"<figcaption>{html.escape(caption)}</figcaption>"
+    slideshow += "</tg-slideshow>"
+
+    payload = {
+        "chat_id": message.chat.id,
+        "rich_message": {
+            "html": slideshow,
+        },
     }
 
-    r = requests.get(API, params=params)
-    data = r.json()
+    if message.message_thread_id:
+        payload["message_thread_id"] = message.message_thread_id
 
-    return [item["title"] for item in data["query"]["categorymembers"]]
+    payload["reply_parameters"] = {"message_id": message.message_id}
 
-
-# ----------------------------
-# 2. Get wiki page content
-# ----------------------------
-def get_page_content(title):
-    params = {
-        "action": "query",
-        "prop": "revisions",
-        "rvprop": "content",
-        "titles": title,
-        "format": "json"
-    }
-
-    r = requests.get(API, params=params)
-    pages = r.json()["query"]["pages"]
-
-    for page_id in pages:
-        if "revisions" in pages[page_id]:
-            return pages[page_id]["revisions"][0]["*"]
-    return ""
+    try:
+        await _raw_api_request(message.bot, "sendRichMessage", payload)
+        return True
+    except RuntimeError as e:
+        # Rich slideshow requires Telegram's servers to fetch images from a public URL.
+        # Local files (cards/, guides/) aren't hosted publicly, so fall back to
+        # uploading them directly as a media group.
+        if "RICH_MESSAGE_PHOTO_NO_MEDIA_FOUND" in str(e) or "Bad Request" in str(e):
+            logging.warning("Rich slideshow failed (%s), falling back to media group upload", e)
+            await send_cached_media_group(message, files, caption=caption)
+            return True
+        raise
 
 
-# ----------------------------
-# 3. Extract sections safely
-# ----------------------------
-def extract_section(text, section_name):
-    import re
+async def send_cached_media_group(
+    message: types.Message,
+    files: list[str],
+    caption: str | None = None
+):
+    global _file_id_cache
 
-    pattern = rf"== {section_name} ==(.*?)(==|$)"
-    match = re.search(pattern, text, re.S)
+    media = []
+    first_added = False
 
-    if match:
-        return match.group(1).strip()
-    return None
+    for path in files:
 
+        if not os.path.isfile(path):
+            continue
 
-# ----------------------------
-# 4. Build boss data
-# ----------------------------
-def build_boss(title):
-    print(f"Fetching: {title}")
+        ext = os.path.splitext(path)[1].lower()
 
-    content = get_page_content(title)
+        is_image = ext in (
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp",
+            ".gif"
+        )
 
-    boss_data = {
-        "name": title,
-        "mechanics": extract_section(content, "Mechanics"),
-        "strategy": extract_section(content, "Strategy"),
-        "resistances": extract_section(content, "Resistance"),
-        "drops": extract_section(content, "Rewards"),
-    }
-
-    return boss_data
-
-
-# ----------------------------
-# 5. MAIN SCRAPER
-# ----------------------------
-def main():
-    bosses = get_boss_list()
-
-    all_boss_data = []
-
-    for boss in bosses:
         try:
-            data = build_boss(boss)
-            all_boss_data.append(data)
+            # -------------------------
+            # SOURCE (cached or local)
+            # -------------------------
+            if path in _file_id_cache:
+                media_source = _file_id_cache[path]
+            else:
+                media_source = types.FSInputFile(path)
 
-            time.sleep(1)  # IMPORTANT: avoid API spam
+            # -------------------------
+            # BUILD MEDIA ITEM
+            # -------------------------
+            if is_image:
+                if caption and not first_added:
+                    item = types.InputMediaPhoto(
+                        media=media_source,
+                        caption=caption,
+                        parse_mode="HTML"
+                    )
+                    first_added = True
+                else:
+                    item = types.InputMediaPhoto(media=media_source)
+            else:
+                item = types.InputMediaDocument(media=media_source)
 
-        except Exception as e:
-            print("Error with", boss, e)
+            media.append(item)
 
-    # ----------------------------
-    # 6. SAVE TO JSON FILE
-    # ----------------------------
-    with open("bosses.json", "w", encoding="utf-8") as f:
-        json.dump(all_boss_data, f, indent=2, ensure_ascii=False)
+        except Exception:
+            logging.exception("Failed preparing media %s", path)
 
-    print("\n✅ Saved to bosses.json")
+    if not media:
+        return
 
+    try:
+        sent_messages = await message.answer_media_group(
+            media,
+            reply_parameters=types.ReplyParameters(
+                message_id=message.message_id
+            )
+        )
 
-# Run script
-main()
+        # -------------------------
+        # CACHE FILE IDS
+        # -------------------------
+        for path, sent in zip(files, sent_messages):
+
+            try:
+                if sent.photo:
+                    _file_id_cache[path] = sent.photo[-1].file_id
+
+                elif sent.document:
+                    _file_id_cache[path] = sent.document.file_id
+
+            except Exception:
+                pass
+
+    except Exception:
+        error_text = traceback.format_exc()
+        logging.exception("Media group failed")
+
+        # -------------------------
+        # FALLBACK
+        # -------------------------
+        for path in files:
+            try:
+                if not os.path.isfile(path):
+                    continue
+
+                ext = os.path.splitext(path)[1].lower()
+                is_image = ext in (".jpg", ".jpeg", ".png", ".webp", ".gif")
+
+                if path in _file_id_cache:
+                    fid = _file_id_cache[path]
+
+                    if is_image:
+                        sent = await message.reply_photo(fid)
+                        if sent.photo:
+                            _file_id_cache[path] = sent.photo[-1].file_id
+                    else:
+                        sent = await message.reply_document(fid)
+                        if sent.document:
+                            _file_id_cache[path] = sent.document.file_id
+
+                else:
+                    if is_image:
+                        sent = await message.reply_photo(types.FSInputFile(path))
+                        if sent.photo:
+                            _file_id_cache[path] = sent.photo[-1].file_id
+                    else:
+                        sent = await message.reply_document(types.FSInputFile(path))
+                        if sent.document:
+                            _file_id_cache[path] = sent.document.file_id
+
+                await asyncio.sleep(0.25)
+
+            except TelegramNetworkError:
+                logging.exception("Network error while sending %s", path)
+                await asyncio.sleep(1)
+
+            except Exception:
+                logging.exception("Failed sending fallback media %s", path)
+
+        await send_log(
+            message.bot,
+            f"❌ Media group failed\n\n{error_text[:3500]}"
+        )

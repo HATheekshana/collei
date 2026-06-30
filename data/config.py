@@ -1,4 +1,3 @@
-
 import os
 from dotenv import load_dotenv
 
@@ -16,4 +15,6 @@ CARDS_FOLDER = "cards"
 GUIDES_FOLDER = "guides"
 ARTIFACTS_FOLDER = "artifacts"
 ARTIFACTS_INFO_FILE = os.path.join(ARTIFACTS_FOLDER, "info.json")
+BOSSES_FILE = "bosses.json"
+BOSS_IMAGE_CHANNEL = -1004339480119
 ADMIN_IDS = {1675903713}

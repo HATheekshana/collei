@@ -1,4 +1,3 @@
-
 from data.config import ARTIFACTS_FOLDER, ARTIFACTS_INFO_FILE
 from utils.helper import normalize_name
 import json
