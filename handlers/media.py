@@ -49,6 +49,7 @@ def _rich_media_tag(path: str) -> str:
 
 
 async def _raw_api_request(bot: Bot, method: str, payload: dict) -> dict:
+    """Make a raw Telegram API request for unsupported methods like sendRichMessage."""
     session = getattr(bot, "session", None)
     if session is None:
         raise RuntimeError("Bot session not available for raw API request")
@@ -97,8 +98,12 @@ async def send_media_slideshow(
     if not media_items:
         return False
 
+    logging.info(f"send_media_slideshow called with {len(media_items)} items: {media_items}")
+
     urls = [m["image_url"] for m in media_items if m.get("image_url")]
     has_file_id_only = any("image_url" not in m and m.get("file_id") for m in media_items)
+
+    logging.info(f"URLs found: {len(urls)}, has_file_id_only: {has_file_id_only}, total items: {len(media_items)}")
 
     # Only attempt the rich slideshow if every item resolved to a public URL.
     if urls and not has_file_id_only and len(urls) == len(media_items):
@@ -108,30 +113,36 @@ async def send_media_slideshow(
             slideshow += f"<figcaption>{html.escape(caption)}</figcaption>"
         slideshow += "</tg-slideshow>"
 
-        payload: dict = {
+        logging.info(f"Attempting rich slideshow with {len(urls)} images")
+        api_kwargs: dict = {
             "chat_id": message.chat.id,
             "rich_message": {"html": slideshow},
         }
         if message.message_thread_id:
-            payload["message_thread_id"] = message.message_thread_id
-        payload["reply_parameters"] = {"message_id": message.message_id}
+            api_kwargs["message_thread_id"] = message.message_thread_id
+        api_kwargs["reply_parameters"] = {"message_id": message.message_id}
 
         try:
-            await _raw_api_request(message.bot, "sendRichMessage", payload)
+            await _raw_api_request(message.bot, "sendRichMessage", api_kwargs)
+            logging.info("Rich slideshow sent successfully")
             return True
-        except RuntimeError as e:
+        except Exception as e:
             err = str(e)
+            logging.warning(f"Rich slideshow failed: {err}")
             if "message to be replied not found" in err:
-                payload.pop("reply_parameters", None)
+                api_kwargs.pop("reply_parameters", None)
                 try:
-                    await _raw_api_request(message.bot, "sendRichMessage", payload)
+                    await _raw_api_request(message.bot, "sendRichMessage", api_kwargs)
+                    logging.info("Rich slideshow sent successfully (without reply ref)")
                     return True
-                except RuntimeError as e2:
+                except Exception as e2:
                     err = str(e2)
+                    logging.warning(f"Rich slideshow retry failed: {err}")
             logging.warning("Rich slideshow (imgBB URLs) failed (%s), falling back to media group", err)
 
     # Fallback: native Telegram media group, mixing URLs and file_ids freely
     # (Telegram's InputMediaPhoto accepts either a URL string or a file_id).
+    logging.info("Falling back to media group")
     await _send_mixed_media_group(message, media_items, caption=caption)
     return True
 
@@ -205,26 +216,26 @@ async def send_rich_slideshow(
         slideshow += f"<figcaption>{html.escape(caption)}</figcaption>"
     slideshow += "</tg-slideshow>"
 
-    payload = {
+    api_kwargs = {
         "chat_id": message.chat.id,
         "rich_message": {"html": slideshow},
     }
     if message.message_thread_id:
-        payload["message_thread_id"] = message.message_thread_id
-    payload["reply_parameters"] = {"message_id": message.message_id}
+        api_kwargs["message_thread_id"] = message.message_thread_id
+    api_kwargs["reply_parameters"] = {"message_id": message.message_id}
 
     try:
-        await _raw_api_request(message.bot, "sendRichMessage", payload)
+        await _raw_api_request(message.bot, "sendRichMessage", api_kwargs)
         return True
-    except RuntimeError as e:
+    except Exception as e:
         err = str(e)
         if "message to be replied not found" in err:
             logging.warning("Reply message gone, retrying rich slideshow without reply ref")
-            payload.pop("reply_parameters", None)
+            api_kwargs.pop("reply_parameters", None)
             try:
-                await _raw_api_request(message.bot, "sendRichMessage", payload)
+                await _raw_api_request(message.bot, "sendRichMessage", api_kwargs)
                 return True
-            except RuntimeError as e2:
+            except Exception as e2:
                 err = str(e2)
         if "RICH_MESSAGE_PHOTO_NO_MEDIA_FOUND" in err or "Bad Request" in err:
             logging.warning("Rich slideshow failed (%s), falling back to media group upload", err)

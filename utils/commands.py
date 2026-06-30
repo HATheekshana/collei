@@ -10,7 +10,7 @@ from aiogram.types import (
     BotCommandScopeAllChatAdministrators,
 )
 
-from data.search_items import COMMAND
+from data.search_items import SEARCH_ITEMS
 
 MAX_BOT_COMMANDS = 200
 
@@ -30,7 +30,7 @@ async def set_commands(bot: Bot):
         remaining = MAX_BOT_COMMANDS - len(commands)
 
         if remaining > 0:
-            for key, value in list(COMMAND.items())[:remaining]:
+            for key, value in list(SEARCH_ITEMS.items())[:remaining]:
                 safe_key = key.lower().replace(" ", "_")
 
                 commands.append(

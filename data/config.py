@@ -16,5 +16,16 @@ GUIDES_FOLDER = "guides"
 ARTIFACTS_FOLDER = "artifacts"
 ARTIFACTS_INFO_FILE = os.path.join(ARTIFACTS_FOLDER, "info.json")
 BOSSES_FILE = "bosses.json"
+
+# JSON files for cards and guides metadata
+CARDS_FILE = "cards.json"
+GUIDES_FILE = "guides.json"
+
+# Telegram media channel for backup storage
+MEDIA_CHANNEL = int(os.getenv("MEDIA_CHANNEL", "-1001234567890"))
+
+# ImgBB API key for image uploads
+IMGBB_API_KEY = os.getenv("IMGBB_API_KEY", "")
+
 BOSS_IMAGE_CHANNEL = -1004339480119
 ADMIN_IDS = {1675903713}

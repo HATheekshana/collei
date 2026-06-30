@@ -2,10 +2,8 @@ import difflib
 import re
 from aiogram import types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from utils.helper import normalize_name, resolve_character_media
-from handlers.media import send_media_slideshow
+from utils.helper import normalize_name, find_artifact_files
 from utils.artifacts import find_artifact_info
-from utils.helper import find_artifact_files
 from data.search_items import SEARCH_ITEMS
 
 
@@ -119,6 +117,8 @@ def render_search_keyboard(keys: list[str], user_id: int) -> InlineKeyboardMarku
 
 async def send_search_result(message: types.Message, key: str):
     from utils.bosses import find_boss
+    from utils.helper import resolve_character_media
+    from handlers.media import send_media_slideshow
 
     # --- Boss check ---
     display_name = SEARCH_ITEMS.get(key, key.title())
@@ -162,7 +162,7 @@ async def send_search_result(message: types.Message, key: str):
                     pass
         return
 
-    # --- Character cards + guides ---
+    # --- Character cards + guides (with rich slideshow support) ---
     media_items = await resolve_character_media(message.bot, key)
 
     if not media_items:

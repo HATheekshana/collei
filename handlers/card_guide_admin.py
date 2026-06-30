@@ -96,6 +96,8 @@ async def _handle_add_media(message: types.Message, kind: str):
 
     If the character doesn't exist in SEARCH_ITEMS or the JSON yet it is
     created automatically (in-memory + persisted to search_items.py).
+    
+    Uploads image to both Telegram channel (backup) and imgbb (rich slideshow).
     """
     if not is_admin(message):
         await message.reply("You are not authorized to use this command.")
@@ -137,40 +139,38 @@ async def _handle_add_media(message: types.Message, kind: str):
         return
 
     photo = replied.photo[-1]
+    status_msg = await message.reply(f"⏳ Uploading {kind}...")
 
-    image_url: str | None = None
-    channel_file_id: str | None = None
-
-    # 1. Try imgBB first — download the photo bytes from Telegram, then upload.
+    # Upload to Telegram channel
     try:
-        from io import BytesIO
-        from utils.imgbb import upload_to_imgbb, ImgBBUploadError
-
-        buf = BytesIO()
-        await message.bot.download(photo.file_id, destination=buf)
-        buf.seek(0)
-        image_url = await upload_to_imgbb(buf.read(), filename=display_name)
-    except ImgBBUploadError as e:
-        logging.warning("imgBB upload failed for /add%s %s (%s), falling back to Telegram channel", kind, display_name, e)
+        sent = await message.bot.send_photo(
+            chat_id=MEDIA_CHANNEL,
+            photo=photo.file_id,
+            caption=f"{kind.title()}: {display_name}",
+        )
+        channel_file_id = sent.photo[-1].file_id
     except Exception:
-        logging.exception("Unexpected error during imgBB upload for /add%s %s", kind, display_name)
+        logging.exception("Failed to send %s image to channel", kind)
+        await status_msg.edit_text(
+            "Failed to send the image to the storage channel. "
+            "Make sure the bot is an admin in that channel."
+        )
+        return
 
-    # 2. Fallback: Telegram channel (only if imgBB failed)
-    if not image_url:
+    # Try to upload to imgbb (non-blocking - will show error if it fails)
+    imgbb_url = None
+    try:
+        from utils.imgbb import upload_file_by_telegram_download, ImgBBUploadError
         try:
-            sent = await message.bot.send_photo(
-                chat_id=MEDIA_CHANNEL,
-                photo=photo.file_id,
-                caption=f"{kind.title()}: {display_name}",
+            imgbb_url = await upload_file_by_telegram_download(
+                message.bot, photo.file_id, 
+                filename=f"{display_name}_{photo.file_id[-8:]}.jpg"
             )
-            channel_file_id = sent.photo[-1].file_id
-        except Exception:
-            logging.exception("Failed to send %s image to channel", kind)
-            await message.reply(
-                "Failed to upload to imgBB AND to the Telegram storage channel. "
-                "Check IMGBB_API_KEY and that the bot is an admin in the channel."
-            )
-            return
+            logging.info(f"Successfully uploaded {kind} to imgbb: {imgbb_url}")
+        except ImgBBUploadError as e:
+            logging.warning(f"imgbb upload failed (will use Telegram fallback): {e}")
+    except Exception as e:
+        logging.warning(f"Error with imgbb upload: {e}")
 
     entries = load_cards() if kind == "card" else load_guides()
     existing_count = sum(1 for e in entries if e.get("character_key") == character_key)
@@ -181,27 +181,34 @@ async def _handle_add_media(message: types.Message, kind: str):
         "name": f"{display_name}{(' ' + str(existing_count + 1)) if existing_count else ''}",
         "filename": synthetic_filename,
         "character_key": character_key,
-        "image_url": image_url,
         "file_id": channel_file_id,
     }
+    
+    if imgbb_url:
+        new_entry["image_url"] = imgbb_url
+
     entries.append(new_entry)
 
-    saved = save_cards(entries) if kind == "card" else save_guides(entries)
+    if kind == "card":
+        saved = save_cards(entries)
+        set_func = None
+    else:
+        saved = save_guides(entries)
+        set_func = None
+
     if not saved:
-        await message.reply(
-            f"Image uploaded but failed to save to {kind}s.json. Check logs."
+        await status_msg.edit_text(
+            f"Image sent to channel but failed to save to {kind}s.json. Check logs."
         )
         return
 
     new_tag = " (new character created)" if created_new else ""
-    storage_note = "imgBB (public URL)" if image_url else "Telegram channel (file_id fallback)"
-    await message.reply(
-        f"✅ {kind.title()} added for <b>{display_name}</b>{new_tag}.\n"
-        f"Stored via {storage_note} — no file written to the server.",
+    imgbb_status = " ✨ (with imgbb link)" if imgbb_url else " (Telegram storage)"
+    await status_msg.edit_text(
+        f"✅ {kind.title()} added for <b>{display_name}</b>{new_tag}.{imgbb_status}",
         parse_mode="HTML",
     )
-    logging.info("%s added: %s -> %s", kind.title(), display_name, image_url or channel_file_id)
-
+    logging.info("%s added: %s -> file_id=%s, imgbb=%s", kind.title(), display_name, channel_file_id, imgbb_url or "none")
 
 
 # ---------------------------------------------------------------------------

@@ -10,6 +10,8 @@ from aiogram.types import (
 )
 from aiogram import Router
 from utils.helper import normalize_name, find_character_files, find_artifact_files
+from utils.cards import find_cards_for_character
+from utils.guides import find_guides_for_character
 from data.search_items import SEARCH_ITEMS
 from utils.artifacts import find_artifact_info
 from utils.bosses import find_boss
@@ -85,22 +87,50 @@ async def inline_search(inline_query: InlineQuery):
                     break
                 continue
 
-            # collect image URLs for this entry
-            def collect_images() -> list:
-                imgs = []
+            # collect image URLs from imgBB (preferred) or fallback to local files
+            def collect_images_with_source() -> tuple[list, list, list]:
+                """Return (all_imgs, cards, builds)"""
+                all_imgs = []
+                cards = []
+                builds = []
+                
+                # Get cards and guides from JSON with imgbb URLs
+                cards_entries = find_cards_for_character(key)
+                guides_entries = find_guides_for_character(key)
+                
+                for entry in cards_entries:
+                    if entry.get("image_url"):
+                        url = entry["image_url"]
+                        all_imgs.append(url)
+                        cards.append(url)
+                
+                for entry in guides_entries:
+                    if entry.get("image_url"):
+                        url = entry["image_url"]
+                        all_imgs.append(url)
+                        builds.append(url)
+                
+                # Fallback to local files if no imgbb URLs (for backward compat)
                 for p in artifact_files:
                     if url_is_image(p):
                         relp = p.replace('\\', '/').lstrip('./')
-                        imgs.append(make_url(relp))
+                        url = make_url(relp)
+                        all_imgs.append(url)
+                
                 for p in character_files:
                     relp = p.replace('\\', '/').lstrip('./')
                     if relp.startswith('cards/') and url_is_image(relp):
-                        imgs.append(make_url(relp))
-                    if relp.startswith('guides/') and url_is_image(relp):
-                        imgs.append(make_url(relp))
-                return imgs
+                        url = make_url(relp)
+                        all_imgs.append(url)
+                        cards.append(url)
+                    elif relp.startswith('guides/') and url_is_image(relp):
+                        url = make_url(relp)
+                        all_imgs.append(url)
+                        builds.append(url)
+                
+                return all_imgs, cards, builds
 
-            images = collect_images()
+            images, cards_urls, builds_urls = collect_images_with_source()
 
             if artifact_info:
                 message_text = [display_name]
@@ -125,22 +155,9 @@ async def inline_search(inline_query: InlineQuery):
                         ),
                     )
                 )
-            elif character_files:
-                cards = []
-                builds = []
-                preview_url = None
-
-                for path in character_files:
-                    rel = path.replace('\\', '/').lstrip('./')
-                    url = make_url(rel)
-                    if rel.startswith('cards/') and url_is_image(rel):
-                        cards.append(url)
-                        if not preview_url:
-                            preview_url = url
-                    elif rel.startswith('guides/') and url_is_image(rel):
-                        builds.append(url)
-                        if not preview_url:
-                            preview_url = url
+            elif images or character_files:
+                # Character has cards/guides (either from imgbb or local files)
+                preview_url = cards_urls[0] if cards_urls else (builds_urls[0] if builds_urls else (images[0] if images else None))
 
                 message_text = [display_name]
                 if preview_url:

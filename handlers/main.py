@@ -19,8 +19,10 @@ router = Router()
 
 async def _send_character_results(message: types.Message, character: str):
     """Resolve media (imgBB URL preferred, Telegram file_id fallback) and send as rich slideshow."""
+    logging.info(f"_send_character_results called with character: {character}")
     media_items = await resolve_character_media(message.bot, character)
 
+    logging.info(f"Got {len(media_items)} media items: {media_items[:2] if media_items else 'None'}")
     if not media_items:
         await message.reply(f"No files found for {character.title()}.")
         return

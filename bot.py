@@ -6,6 +6,8 @@ from aiogram.client.default import DefaultBotProperties
 
 from data.config import TOKEN
 from utils.helper import send_log, build_character_cache, sync_media_to_telegram
+from migrate_to_imgbb import migrate_all_to_imgbb
+from init_metadata import init_cards_json, init_guides_json
 
 from handlers.inline import router as inline_router
 from handlers.main import router as main_router
@@ -37,6 +39,11 @@ async def main():
     dp.include_router(inline_router)
     dp.include_router(main_router)
 
+    # Initialize metadata files from local directories if they don't exist
+    logging.info("Initializing metadata...")
+    init_cards_json()
+    init_guides_json()
+
     build_character_cache()
 
     try:
@@ -50,6 +57,12 @@ async def main():
         await sync_media_to_telegram(bot)
     except Exception:
         logging.exception("Media sync failed")
+
+    # Migrate cards/guides without imgbb URLs to imgbb
+    try:
+        await migrate_all_to_imgbb(bot)
+    except Exception:
+        logging.exception("ImgBB migration failed")
 
     logging.info("Bot started")
 
