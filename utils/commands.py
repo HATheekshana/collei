@@ -17,6 +17,8 @@ MAX_BOT_COMMANDS = 200
 DEFAULT_COMMANDS = [
     BotCommand(command="start", description="Show welcome message"),
     BotCommand(command="search", description="Search characters and artifacts"),
+    BotCommand(command="next", description="Show next banner countdowns"),
+    BotCommand(command="current", description="Show current banner countdowns"),
     BotCommand(command="allcommands", description="List all commands"),
     BotCommand(command="addarti", description="Add artifact info"),
     BotCommand(command="bossimg", description="[Admin] Set boss image (reply to photo)"),

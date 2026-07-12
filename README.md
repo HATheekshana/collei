@@ -85,6 +85,8 @@ python bot.py
 | `/start` | Start the bot and get help |
 | `/[character]` | Get character cards and guides (e.g., `/albedo`) |
 | `/search [query]` | Search for characters, artifacts, or bosses |
+| `/next [na|eu|asia]` | Show how much time is left for the next banner in a region |
+| `/current [na|eu|asia]` | Show how much time is left for the current banner in a region |
 | `/allcommands` | List all available character commands |
 | `/addarti` | Get artifact information |
 | `/bossimg` | Get boss information |

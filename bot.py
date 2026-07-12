@@ -1,10 +1,11 @@
 import asyncio
 import logging
+from datetime import datetime, timedelta, timezone
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 
-from data.config import TOKEN
+from data.config import TOKEN, SUPPORT_CHAT_ID
 from utils.helper import send_log, build_character_cache, sync_media_to_telegram
 from migrate_to_imgbb import migrate_all_to_imgbb
 from init_metadata import init_cards_json, init_guides_json
@@ -63,6 +64,34 @@ async def main():
         await migrate_all_to_imgbb(bot)
     except Exception:
         logging.exception("ImgBB migration failed")
+
+    async def _daily_alive_message():
+        if not SUPPORT_CHAT_ID:
+            logging.info("SUPPORT_CHAT_ID not set; daily alive message disabled")
+            return
+
+        while True:
+            now = datetime.now(timezone.utc)
+            target = now.replace(hour=5, minute=30, second=0, microsecond=0)
+            if target <= now:
+                target += timedelta(days=1)
+            wait_seconds = (target - now).total_seconds()
+            logging.info(f"Daily alive message scheduled in {wait_seconds:.0f} seconds")
+            await asyncio.sleep(wait_seconds)
+
+            try:
+                await bot.send_message(
+                    chat_id=SUPPORT_CHAT_ID,
+                    text="🤖 Bot is live! Use /bsync to refresh banner data.",
+                )
+                logging.info("Sent daily alive message to support group")
+            except Exception:
+                logging.exception("Failed to send daily alive message")
+
+            # Sleep for one full 24-hour period after sending.
+            await asyncio.sleep(24 * 3600)
+
+    asyncio.create_task(_daily_alive_message())
 
     logging.info("Bot started")
 
