@@ -1,19 +1,15 @@
 import logging
-import os
-import re
+from uuid import uuid4
+from html import escape
 
 from aiogram import types
 
-from data.config import ADMIN_IDS, MEDIA_CHANNEL, CARDS_FILE, GUIDES_FILE
-from utils.cards import load_cards, save_cards
-from utils.guides import load_guides, save_guides
+from data.config import ADMIN_IDS, MEDIA_CHANNEL
+from utils.cards import load_cards
+from utils.guides import load_guides
+from utils import character_media_db
 from utils.helper import normalize_name
 from data.search_items import SEARCH_ITEMS
-
-ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif"}
-
-SEARCH_ITEMS_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "search_items.py")
-
 
 def is_admin(message: types.Message) -> bool:
     return bool(message.from_user and message.from_user.id in ADMIN_IDS)
@@ -24,17 +20,14 @@ def is_admin(message: types.Message) -> bool:
 # ---------------------------------------------------------------------------
 
 def _add_to_search_items(key: str, display_name: str) -> bool:
-    """
-    Add key -> display_name to the in-memory SEARCH_ITEMS dict AND persist it
-    to data/search_items.py so it survives restarts.
-    """
+    """Register a search label; database loaders restore it after restart."""
     SEARCH_ITEMS[key] = display_name
-    return _save_search_items()
+    return True
 
 
 def _remove_from_search_items(key: str) -> bool:
     """
-    Remove a key from SEARCH_ITEMS and persist, but only if no cards or guides
+    Remove a key from SEARCH_ITEMS but only if no cards or guides
     remain for that character.
     """
     cards  = [c for c in load_cards()  if c.get("character_key") == key]
@@ -42,23 +35,7 @@ def _remove_from_search_items(key: str) -> bool:
     if cards or guides:
         return False   # still has media — don't remove
     SEARCH_ITEMS.pop(key, None)
-    return _save_search_items()
-
-
-def _save_search_items() -> bool:
-    """Rewrite data/search_items.py from the current in-memory SEARCH_ITEMS."""
-    try:
-        path = os.path.normpath(SEARCH_ITEMS_PATH)
-        lines = ["SEARCH_ITEMS = {\n"]
-        for k, v in sorted(SEARCH_ITEMS.items()):
-            lines.append(f'    {k!r}: {v!r},\n')
-        lines.append("}\n")
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.writelines(lines)
-        return True
-    except Exception:
-        logging.exception("Failed to save search_items.py")
-        return False
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -94,8 +71,8 @@ async def _handle_add_media(message: types.Message, kind: str):
 
     Usage: reply to a photo with /addcard <character> or /addguide <character>
 
-    If the character doesn't exist in SEARCH_ITEMS or the JSON yet it is
-    created automatically (in-memory + persisted to search_items.py).
+    If the character doesn't exist in SEARCH_ITEMS or the database yet it is
+    created automatically (restored from MongoDB on restart).
     
     Uploads image to both Telegram channel (backup) and imgbb (rich slideshow).
     """
@@ -119,12 +96,6 @@ async def _handle_add_media(message: types.Message, kind: str):
         # Auto-create: derive key from the provided name
         character_key = _make_key(character_arg)
         display_name  = character_arg.title()
-        if not _add_to_search_items(character_key, display_name):
-            await message.reply(
-                f"⚠️ Could not save new character \"{display_name}\" to search_items.py. "
-                f"Check logs."
-            )
-            return
         created_new = True
         logging.info("Auto-created SEARCH_ITEMS entry: %s -> %s", character_key, display_name)
     else:
@@ -172,35 +143,20 @@ async def _handle_add_media(message: types.Message, kind: str):
     except Exception as e:
         logging.warning(f"Error with imgbb upload: {e}")
 
-    entries = load_cards() if kind == "card" else load_guides()
-    existing_count = sum(1 for e in entries if e.get("character_key") == character_key)
-    suffix = f"_{existing_count + 1}" if existing_count else ""
-    synthetic_filename = f"{display_name}{suffix}.jpg"
-
     new_entry = {
-        "name": f"{display_name}{(' ' + str(existing_count + 1)) if existing_count else ''}",
-        "filename": synthetic_filename,
-        "character_key": character_key,
-        "file_id": channel_file_id,
+        "name": display_name, "display_name": display_name,
+        "filename": f"{character_key}_{uuid4().hex}.jpg",
+        "character_key": character_key, "file_id": channel_file_id,
     }
-    
     if imgbb_url:
         new_entry["image_url"] = imgbb_url
-
-    entries.append(new_entry)
-
-    if kind == "card":
-        saved = save_cards(entries)
-        set_func = None
-    else:
-        saved = save_guides(entries)
-        set_func = None
-
-    if not saved:
-        await status_msg.edit_text(
-            f"Image sent to channel but failed to save to {kind}s.json. Check logs."
-        )
+    try:
+        await character_media_db.add("cards" if kind == "card" else "guides", new_entry)
+    except Exception:
+        logging.exception("Character media database save failed")
+        await status_msg.edit_text("Image uploaded, but saving to MongoDB failed. Please retry.")
         return
+    display_name = escape(display_name)
 
     new_tag = " (new character created)" if created_new else ""
     imgbb_status = " ✨ (with imgbb link)" if imgbb_url else " (Telegram storage)"
@@ -247,20 +203,13 @@ async def _handle_del_media(message: types.Message, kind: str):
 
     display_name = SEARCH_ITEMS.get(character_key, character_arg.title())
 
-    if kind == "card":
-        entries   = load_cards()
-        remaining = [e for e in entries if e.get("character_key") != character_key]
-        removed   = len(entries) - len(remaining)
-        saved     = save_cards(remaining)
-    else:
-        entries   = load_guides()
-        remaining = [e for e in entries if e.get("character_key") != character_key]
-        removed   = len(entries) - len(remaining)
-        saved     = save_guides(remaining)
-
-    if not saved:
-        await message.reply(f"Failed to save {kind}s.json after deletion. Check logs.")
+    try:
+        removed = await character_media_db.delete_character("cards" if kind == "card" else "guides", character_key)
+    except Exception:
+        logging.exception("Character media database deletion failed")
+        await message.reply("Could not delete media from MongoDB. Please retry.")
         return
+    display_name = escape(display_name)
 
     if removed == 0:
         await message.reply(f"No {kind}s found for <b>{display_name}</b>.", parse_mode="HTML")

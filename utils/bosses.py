@@ -1,3 +1,4 @@
+from utils import storage
 import json
 import logging
 import os
@@ -15,35 +16,11 @@ def _invalidate_cache():
 
 
 def load_bosses() -> list:
-    global _boss_cache
-    if _boss_cache is not None:
-        return _boss_cache
-
-    if not os.path.isfile(BOSSES_FILE):
-        _boss_cache = []
-        return _boss_cache
-
-    try:
-        with open(BOSSES_FILE, "r", encoding="utf-8") as fh:
-            data = json.load(fh)
-        _boss_cache = data if isinstance(data, list) else []
-    except Exception:
-        logging.exception("Failed to load bosses.json")
-        _boss_cache = []
-
-    return _boss_cache
+    return storage.read("bosses", [])
 
 
 def save_bosses(bosses: list) -> bool:
-    try:
-        with open(BOSSES_FILE, "w", encoding="utf-8") as fh:
-            json.dump(bosses, fh, ensure_ascii=False, indent=2)
-        _invalidate_cache()
-        load_bosses()
-        return True
-    except Exception:
-        logging.exception("Failed to save bosses.json")
-        return False
+    return storage.save("bosses", bosses)
 
 
 def find_boss(query: str) -> dict | None:

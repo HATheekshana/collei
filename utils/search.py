@@ -1,10 +1,25 @@
 import difflib
 import re
+from typing import Any
 from aiogram import types
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+try:
+    from aiogram.types import (
+        InputRichBlockButtons,
+        InputRichBlockParagraph,
+        InputRichMessage,
+        RichMessageButton,
+    )
+    RICH_MESSAGE_AVAILABLE = True
+except ImportError:
+    InputRichBlockButtons = InputRichBlockParagraph = InputRichMessage = RichMessageButton = Any
+    RICH_MESSAGE_AVAILABLE = False
 from utils.helper import normalize_name, find_artifact_files
 from utils.artifacts import find_artifact_info
 from data.search_items import SEARCH_ITEMS
+
+# aiogram 3.31.0 / Bot API 10.3: buttons in a rich message come in rows of
+# up to this many, via InputRichBlockButtons ("<tg-button-row>").
+_BUTTONS_PER_ROW = 2
 
 
 def _normalize_query(value: str) -> str:
@@ -22,97 +37,75 @@ def _matches_all_tokens(query_tokens: list[str], item_tokens: set[str]) -> bool:
     )
 
 
-def find_search_matches(query: str, max_results: int = 8) -> list[str]:
-    query_norm = _normalize_query(query)
-    query_tokens = _tokenize(query)
-    if not query_norm or not query_tokens:
-        return []
-
-    exact_matches = []
-    token_matches = []
-    prefix_matches = []
-    contains_matches = []
-    fuzzy_candidates = []
-
-    for key, display_name in SEARCH_ITEMS.items():
-        key_norm = _normalize_query(key)
-        display_norm = _normalize_query(display_name)
-        key_tokens = _tokenize(key)
-        display_tokens = _tokenize(display_name)
-        all_tokens = set(key_tokens + display_tokens)
-
-        if key_norm == query_norm or display_norm == query_norm:
-            exact_matches.append((0, key))
-            continue
-
-        if query_tokens == key_tokens or query_tokens == display_tokens:
-            token_matches.append((0, key))
-            continue
-
-        if _matches_all_tokens(query_tokens, all_tokens):
-            token_matches.append((1, key))
-            continue
-
-        if key_norm.startswith(query_norm) or display_norm.startswith(query_norm):
-            prefix_matches.append((2, key))
-            continue
-
-        if any(qt in key_norm or qt in display_norm for qt in query_tokens):
-            contains_matches.append((3, key))
-            continue
-
-        score = max(
-            difflib.SequenceMatcher(None, query_norm, key_norm).ratio(),
-            difflib.SequenceMatcher(None, query_norm, display_norm).ratio(),
-        )
-        if score > 0.55:
-            fuzzy_candidates.append((score, key))
-
-    if exact_matches:
-        return [k for _, k in exact_matches][:max_results]
-
-    ordered_results = []
-    seen = set()
-
-    for score, key in token_matches + prefix_matches + contains_matches:
-        if key not in seen:
-            seen.add(key)
-            ordered_results.append((score, key))
-            if len(ordered_results) >= max_results:
-                break
-
-    if len(ordered_results) < max_results:
-        fuzzy_candidates.sort(key=lambda item: (-item[0], item[1]))
-        for _, key in fuzzy_candidates:
-            if key not in seen:
-                seen.add(key)
-                ordered_results.append((4, key))
-                if len(ordered_results) >= max_results:
-                    break
-
-    return [key for _, key in ordered_results][:max_results]
+def search_catalog():
+    """Separate identities prevent character/equipment name collisions."""
+    from utils.cards import load_cards
+    from utils.guides import load_guides
+    from utils.artifacts import load_artifact_info
+    from utils.weapons import load_weapons
+    from utils.bosses import load_bosses
+    result = {}
+    for entry in load_cards() + load_guides():
+        key = entry["character_key"]
+        result["c:" + key] = entry.get("display_name") or (SEARCH_ITEMS.get(key) if normalize_name(SEARCH_ITEMS.get(key, "")) == normalize_name(key) else None) or key.replace("_", " ").title()
+    result.update({"w:"+k: v.get("name", k) for k,v in load_weapons().items()})
+    result.update({"a:"+k: v.get("name", k) for k,v in load_artifact_info().items()})
+    result.update({"b:"+normalize_name(v["name"]): v["name"] for v in load_bosses()})
+    return result
 
 
-def render_search_keyboard(keys: list[str], user_id: int) -> InlineKeyboardMarkup:
-    keyboard = []
-    row = []
+def find_search_matches(query: str, max_results: int = 24) -> list[str]:
+    q = _normalize_query(query)
+    if not q: return []
+    scored = []
+    for token, name in search_catalog().items():
+        key = token.split(":", 1)[1]
+        norm = _normalize_query(name)
+        if q in key or q in norm:
+            score = 0 if q in (key, norm) else 1
+        else:
+            ratio = max(difflib.SequenceMatcher(None,q,key).ratio(), difflib.SequenceMatcher(None,q,norm).ratio())
+            if ratio < .65: continue
+            score = 2 + (1-ratio)
+        scored.append((score, token))
+    scored.sort()
+    # Reserve space per category so equipment cannot crowd out characters.
+    matches = []
+    for kind in ("c", "w", "a", "b"):
+        matches.extend(t for _,t in [v for v in scored if v[1].startswith(kind+":")][:max(1,max_results//4)])
+    return matches[:max_results]
 
-    for idx, key in enumerate(keys):
-        label = SEARCH_ITEMS.get(key, key.title())
-        button = InlineKeyboardButton(
-            text=label,
+
+def _search_result_buttons(keys: list[str], user_id: int) -> list[Any]:
+    return [
+        RichMessageButton(
+            text=search_catalog().get(key, key.title()),
             callback_data=f"search|{user_id}|{key}",
         )
-        row.append(button)
+        for key in keys
+    ]
 
-        if len(row) >= 2:
-            keyboard.append(row)
-            row = []
 
-    if row:
-        keyboard.append(row)
+def render_search_button_rows(keys: list[str], user_id: int) -> list[Any]:
+    """Chunk search result buttons into <tg-button-row> blocks for a rich message."""
+    buttons = _search_result_buttons(keys, user_id)
+    rows = []
 
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+    for i in range(0, len(buttons), _BUTTONS_PER_ROW):
+        rows.append(InputRichBlockButtons(buttons=buttons[i : i + _BUTTONS_PER_ROW]))
+
+    return rows
+
+
+def build_search_rich_message(query: str, keys: list[str], user_id: int) -> Any:
+    """Build the rich message (text + button rows) shown for multiple /search matches."""
+    blocks = [InputRichBlockParagraph(text=f'Search results for "{query}":')]
+    for kind, title in (("c", "Characters"), ("w", "Weapons"), ("a", "Artifacts"), ("b", "Bosses")):
+        group = [key for key in keys if key.startswith(kind+":")]
+        if group:
+            blocks.append(InputRichBlockParagraph(text=title))
+            blocks.extend(render_search_button_rows(group, user_id))
+    return InputRichMessage(blocks=blocks)
 
 
 async def send_search_result(message: types.Message, key: str):
@@ -120,9 +113,27 @@ async def send_search_result(message: types.Message, key: str):
     from utils.helper import resolve_character_media
     from handlers.media import send_media_slideshow
 
+    kind, separator, raw = key.partition(":")
+    if separator and kind in ("c", "w", "a", "b"):
+        key = raw
+    else:
+        kind = "c"  # Legacy buttons default to characters.
+    if kind == "w":
+        from utils.weapons import send_weapon_result
+        await send_weapon_result(message, key)
+        return
+    if kind == "c":
+        media_items = await resolve_character_media(message.bot, key)
+        if not media_items:
+            await message.reply("No character cards found.")
+            return
+        caption = search_catalog().get("c:"+key, key.title())
+        await send_media_slideshow(message, media_items, caption=caption, character_key=key)
+        return
+
     # --- Boss check ---
-    display_name = SEARCH_ITEMS.get(key, key.title())
-    boss = find_boss(display_name)
+    display_name = search_catalog().get(kind+":"+key, key.title())
+    boss = find_boss(display_name) if kind == "b" else None
     if boss and boss.get("file_id"):
         try:
             await message.reply_photo(
@@ -135,10 +146,16 @@ async def send_search_result(message: types.Message, key: str):
         return
 
     # --- Artifact check ---
-    artifact_info = find_artifact_info(key)
+    artifact_info = find_artifact_info(key) if kind == "a" else None
     artifact_files = find_artifact_files(key)
 
     if artifact_info or artifact_files:
+        if artifact_info and artifact_info.get("image_url"):
+            from html import escape
+            title = escape(artifact_info.get("name", key))
+            details = "\n\n".join(escape(str(artifact_info[p])) for p in ("2-Piece Effect", "4-Piece Effect") if p in artifact_info)
+            await message.reply_photo(artifact_info["image_url"], caption=f"<b>{title}</b>\n\n{details}", parse_mode="HTML")
+            return
         caption = None
         if artifact_info:
             info_lines = [f"<b>Artifact:</b> {artifact_info.get('name', key.title())}\n\n"]
@@ -160,6 +177,15 @@ async def send_search_result(message: types.Message, key: str):
                         await message.reply_photo(types.FSInputFile(path))
                 except Exception:
                     pass
+        if caption and not artifact_files:
+            await message.reply(caption, parse_mode="HTML")
+        return
+
+    # --- Weapon check ---
+    from utils.weapons import find_weapon, send_weapon_result as _send_weapon_result
+
+    if find_weapon(key):
+        await _send_weapon_result(message, key)
         return
 
     # --- Character cards + guides (with rich slideshow support) ---
@@ -170,4 +196,4 @@ async def send_search_result(message: types.Message, key: str):
         return
 
     caption = SEARCH_ITEMS.get(key, key.title())
-    await send_media_slideshow(message, media_items, caption=caption)
+    await send_media_slideshow(message, media_items, caption=caption, character_key=key)

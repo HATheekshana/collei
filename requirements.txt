@@ -1,4 +1,7 @@
-aiogram>=3.0.0
-python-dotenv
+aiogram>=3.31.0,<4
+aiohttp>=3.12,<4
+python-dotenv>=1,<2
+requests>=2.32,<3
+Pillow>=10,<13
+pymongo>=4,<5
 tzdata
-requests

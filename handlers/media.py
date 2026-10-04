@@ -88,6 +88,7 @@ async def send_media_slideshow(
     message: types.Message,
     media_items: list[dict],
     caption: str | None = None,
+    character_key: str | None = None,
 ) -> bool:
     """
     Send character cards/guides as a rich tg-slideshow when every item has a
@@ -100,24 +101,40 @@ async def send_media_slideshow(
 
     logging.info(f"send_media_slideshow called with {len(media_items)} items: {media_items}")
 
-    urls = [m["image_url"] for m in media_items if m.get("image_url")]
-    has_file_id_only = any("image_url" not in m and m.get("file_id") for m in media_items)
-
-    logging.info(f"URLs found: {len(urls)}, has_file_id_only: {has_file_id_only}, total items: {len(media_items)}")
-
-    # Only attempt the rich slideshow if every item resolved to a public URL.
-    if urls and not has_file_id_only and len(urls) == len(media_items):
-        blocks = [f'<img src="{u}"/>' for u in urls]
+    unique=[]
+    seen_ids=set();seen_urls=set()
+    for item in media_items:
+        fid=item.get("file_id");url=item.get("image_url")
+        if (fid and fid in seen_ids) or (url and url in seen_urls):continue
+        if fid:seen_ids.add(fid)
+        if url:seen_urls.add(url)
+        if fid or url:unique.append(item)
+    media_items=unique
+    attachments=[];blocks=[]
+    for index,item in enumerate(media_items):
+        identity=f"card_{index}"
+        source=item.get("file_id") or item.get("image_url")
+        attachments.append({"id":identity,"media":{"type":"photo","media":source}})
+        blocks.append(f'<img src="tg://photo?id={identity}"/>')
+    if blocks:
         slideshow = "<tg-slideshow>" + "".join(blocks)
         if caption:
             slideshow += f"<figcaption>{html.escape(caption)}</figcaption>"
         slideshow += "</tg-slideshow>"
+        if character_key:
+            slideshow += "<p>If a character card is unavailable, use /complain@collei_help_bot to report it.</p>"
 
-        logging.info(f"Attempting rich slideshow with {len(urls)} images")
+        logging.info("Attempting rich slideshow with %d attached images",len(attachments))
         api_kwargs: dict = {
             "chat_id": message.chat.id,
-            "rich_message": {"html": slideshow},
+            "rich_message": {"html": slideshow, "media": attachments},
         }
+        if character_key:
+            from utils.character_details import remember,keyboard
+            origin=message.reply_to_message if message.from_user and message.from_user.is_bot else message
+            owner=origin.from_user.id if origin and origin.from_user else 0
+            token=remember(character_key,slideshow,owner,media=attachments)
+            if token:api_kwargs["reply_markup"]=keyboard(token)
         if message.message_thread_id:
             api_kwargs["message_thread_id"] = message.message_thread_id
         api_kwargs["reply_parameters"] = {"message_id": message.message_id}
@@ -143,7 +160,21 @@ async def send_media_slideshow(
     # Fallback: native Telegram media group, mixing URLs and file_ids freely
     # (Telegram's InputMediaPhoto accepts either a URL string or a file_id).
     logging.info("Falling back to media group")
-    await _send_mixed_media_group(message, media_items, caption=caption)
+    fallback_caption = ((caption or "") + "\n\nIf a character card is unavailable, use /complain@collei_help_bot to report it.") if character_key else caption
+    delivered = await _send_mixed_media_group(message, media_items, caption=fallback_caption)
+    if not delivered:
+        await message.reply("Could not send the saved card images. Please try again or ask an admin to check the media links.")
+        return False
+    if character_key:
+        from utils.character_details import remember,keyboard
+        original="<p>"+html.escape(caption or character_key)+" — cards are shown above.</p>"
+        origin=message.reply_to_message if message.from_user and message.from_user.is_bot else message
+        owner=origin.from_user.id if origin and origin.from_user else 0
+        token=remember(character_key,original,owner)
+        if token:
+            await _raw_api_request(message.bot,"sendRichMessage",{
+                "chat_id":message.chat.id,"rich_message":{"html":original},"reply_markup":keyboard(token),
+                "reply_parameters":{"message_id":message.message_id}})
     return True
 
 
@@ -152,32 +183,33 @@ async def _send_mixed_media_group(
     media_items: list[dict],
     caption: str | None = None,
 ):
-    """answer_media_group fallback accepting imgBB URLs or Telegram file_ids."""
-    sources = [m.get("image_url") or m.get("file_id") for m in media_items]
-    sources = [s for s in sources if s]
-
-    CHUNK = 10
-    for i in range(0, len(sources), CHUNK):
-        chunk = sources[i:i + CHUNK]
-        media = []
-        for idx, src in enumerate(chunk):
-            if idx == 0 and i == 0 and caption:
-                media.append(types.InputMediaPhoto(media=src, caption=caption, parse_mode="HTML"))
-            else:
-                media.append(types.InputMediaPhoto(media=src))
+    """Use native photos for singletons; report success only after delivery."""
+    sources = [m.get("file_id") or m.get("image_url") for m in media_items]
+    sources = [source for source in sources if source]
+    if not sources:
+        return False
+    for i in range(0, len(sources), 10):
+        chunk = sources[i:i + 10]
+        async def send(reply=True):
+            kwargs = {"reply_parameters": types.ReplyParameters(message_id=message.message_id)} if reply else {}
+            if len(chunk) == 1:
+                return await message.answer_photo(chunk[0], caption=caption if i==0 else None,
+                                                  parse_mode=None, **kwargs)
+            media = [types.InputMediaPhoto(media=src, caption=caption if i==0 and idx==0 else None,
+                                           parse_mode=None) for idx,src in enumerate(chunk)]
+            return await message.answer_media_group(media, **kwargs)
         try:
             try:
-                await message.answer_media_group(
-                    media,
-                    reply_parameters=types.ReplyParameters(message_id=message.message_id),
-                )
-            except TelegramBadRequest as e:
-                if "message to be replied not found" in str(e):
-                    await message.answer_media_group(media)
+                await send()
+            except TelegramBadRequest as error:
+                if "message to be replied not found" in str(error).lower():
+                    await send(reply=False)
                 else:
                     raise
         except Exception:
-            logging.exception("Mixed media group fallback failed for chunk starting at %d", i)
+            logging.exception("Card image delivery failed at chunk %d",i)
+            return False
+    return True
 
 
 # Backwards-compat shim: older call sites may still pass a flat list of
