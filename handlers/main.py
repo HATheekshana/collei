@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import os
 from aiogram import Router, types
 from aiogram.exceptions import TelegramBadRequest, TelegramRetryAfter
 from aiogram.filters import Command
@@ -44,6 +43,7 @@ from utils.cards import load_cards
 from utils.guides import load_guides
 from handlers.media import send_cached_media_group, send_media_slideshow
 from utils.search import find_search_matches, build_search_rich_message, send_search_result, RICH_MESSAGE_AVAILABLE
+from utils.calculate import router as calculate_router, send_calculate_prompt
 from utils.weapons import find_weapon, load_weapons, send_weapon_result
 from utils.banner import get_banner_countdown_text, fetch_banner_data_from_hoyolab, get_banner_icons, get_banner_text, update_banner_data
 from utils.endgame import get_endgame_text, ensure_schedule
@@ -55,6 +55,7 @@ from utils.broadcast_targets import record_user, record_group
 from utils.banned_users import is_banned
 
 router = Router()
+router.include_router(calculate_router)
 
 MENU_BUTTON_COMMANDS = {
     "artifacts": "artifacts",
@@ -187,7 +188,7 @@ def allcommands_view(owner, section="home", page=0):
     if section == "general":
         items = [
             ("start", "Main menu"), ("help", "Usage and support"),
-            ("allcommands", "Browse all commands"), ("search", "Search by name"),
+            ("allcommands", "Browse all commands"), ("search", "Search by name"), ("calculate", "Pick a character by letter"),
             ("cards", "Character cards"), ("guides", "Character guides"),
             ("weapons", "Weapon details"), ("artifacts", "Artifact sets"),
             ("bosses", "Boss information"), ("current", "Current banners and endgame"),
@@ -470,7 +471,8 @@ async def handle_message(message: types.Message):
     if message_text.startswith("/"):
         command = message_text.split()[0][1:].split('@')[0].lower()
     else:
-        command = MENU_BUTTON_COMMANDS.get(message_text.lower())
+        # Plain text such as "about" or "help" is not a command; only /commands are handled.
+        return
     if not command:
         return
 
@@ -478,7 +480,7 @@ async def handle_message(message: types.Message):
     user = message.from_user
 
     SPECIAL_COMMANDS = {
-        "start", "help", "search", "allcommands", "complain",
+        "start", "help", "search", "calculate", "allcommands", "complain",
         "artifacts", "guides", "cards", "bosses", "weapons", "about", "addgroup", "removegroup",
     }
     ADMIN_COMMANDS = {
@@ -817,6 +819,10 @@ async def handle_message(message: types.Message):
                 "3. The calendar API may be temporarily down — check the bot logs for details\n"
                 "4. Use /bsync again after resolving the issue.",
             )
+        return
+
+    if command == "calculate":
+        await send_calculate_prompt(message, user.id)
         return
 
     if command == "search":

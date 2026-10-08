@@ -58,10 +58,13 @@ def prepare(message, rich):
         if replied and replied.photo:
             rich_message["html"] = '<img src="tg://photo?id=broadcast_photo"/>' + body
             rich_message["media"] = [{"id": "broadcast_photo", "media": {"type": "photo", "media": replied.photo[-1].file_id}}]
+        elif replied and replied.video:
+            rich_message["html"] = '<video src="tg://video?id=broadcast_video"/>' + body
+            rich_message["media"] = [{"id": "broadcast_video", "media": {"type": "video", "media": replied.video.file_id}}]
         elif replied and not replied.text:
-            raise ValueError("Rich broadcast currently accepts text or a replied photo with caption.")
+            raise ValueError("Rich broadcast currently accepts text or a replied photo or video.")
         if not rich_message["html"]:
-            raise ValueError("Add announcement text or reply to a photo.")
+            raise ValueError("Add announcement text or reply to a photo or video.")
         return "send_rich_message", {**payload, "rich_message": rich_message}
     if replied and not replied.text:
         payload.update(from_chat_id=replied.chat.id, message_id=replied.message_id)
